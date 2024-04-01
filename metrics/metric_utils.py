@@ -57,7 +57,7 @@ def feature_prediction(train_data, test_data, index):
     # Set model parameters
 
     args = {}
-    args["device"] = "cuda"
+    args["device"] = "cpu"
     args["task"] = "regression"
     args["model_type"] = "gru"
     args["bidirectional"] = False
@@ -167,7 +167,7 @@ def one_step_ahead_prediction(train_data, test_data):
 
     # Set model parameters
     args = {}
-    args["device"] = "cuda"
+    args["device"] = "cpu"
     args["task"] = "regression"
     args["model_type"] = "gru"
     args["bidirectional"] = False
