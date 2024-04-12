@@ -106,8 +106,8 @@ def main(args):
     model = TimeGAN(args)
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args)
-    generated_data = timegan_generator(model, train_time, args)
-    generated_time = train_time
+    generated_data = timegan_generator(model, test_time, args)
+    generated_time = test_time
 
     # Log end time
     end = time.time()
@@ -166,10 +166,11 @@ def main(args):
         feat_idx,   
         flag
     )
-    print("Running feature prediction using generated data...")
+    
+    print("Running feature prediction using generated data: TRTS (Train on real, test on synthetic)...")
     new_feat_pred_perf = feature_prediction(
+        (train_data, train_time),
         (generated_data, generated_time),
-        (test_data, test_time),
         feat_idx,
         flag
     )
@@ -189,8 +190,8 @@ def main(args):
     )
     print("Running one step ahead prediction using generated data...")
     new_step_ahead_pred_perf = one_step_ahead_prediction(
+        (train_data, train_time),
         (generated_data, generated_time),
-        (test_data, test_time),
         flag
     )
 
