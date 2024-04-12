@@ -80,7 +80,7 @@ def main(args):
     # Load and preprocess data for model
     #########################
 
-    data_path = "data/stock.csv"
+    data_path = "data/python_5years_alt.csv"
     X, T, _, args.max_seq_len, args.padding_value = data_preprocess(
         data_path, args.max_seq_len
     )
@@ -152,18 +152,26 @@ def main(args):
     #########################
 
     # 1. Feature prediction
-    feat_idx = np.random.permutation(train_data.shape[2])[:args.feat_pred_no]
+    if X.shape[2] == 1:
+        feat_idx = [0]
+        flag = False
+    else:
+        feat_idx = np.random.permutation(train_data.shape[2])[:args.feat_pred_no]
+        flag = True
+    
     print("Running feature prediction using original data...")
     ori_feat_pred_perf = feature_prediction(
         (train_data, train_time), 
         (test_data, test_time),
-        feat_idx
+        feat_idx,   
+        flag
     )
     print("Running feature prediction using generated data...")
     new_feat_pred_perf = feature_prediction(
         (generated_data, generated_time),
         (test_data, test_time),
-        feat_idx
+        feat_idx,
+        flag
     )
 
     feat_pred = [ori_feat_pred_perf, new_feat_pred_perf]
@@ -176,12 +184,14 @@ def main(args):
     print("Running one step ahead prediction using original data...")
     ori_step_ahead_pred_perf = one_step_ahead_prediction(
         (train_data, train_time), 
-        (test_data, test_time)
+        (test_data, test_time),
+        flag
     )
     print("Running one step ahead prediction using generated data...")
     new_step_ahead_pred_perf = one_step_ahead_prediction(
         (generated_data, generated_time),
-        (test_data, test_time)
+        (test_data, test_time),
+        flag
     )
 
     step_ahead_pred = [ori_step_ahead_pred_perf, new_step_ahead_pred_perf]

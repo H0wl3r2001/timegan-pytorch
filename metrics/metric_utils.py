@@ -5,6 +5,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, mean_squared_error
 
 from metrics.general_rnn import GeneralRNN
+from metrics.univariate_rnn import UnivariateRNN
 from metrics.dataset import FeaturePredictionDataset, OneStepPredictionDataset
 
 def rmse_error(y_true, y_pred):
@@ -37,7 +38,7 @@ def reidentify_score(enlarge_label, pred_label):
     accuracy = accuracy_score(enlarge_label, pred_label > 0.5)  
     return accuracy
 
-def feature_prediction(train_data, test_data, index):
+def feature_prediction(train_data, test_data, index, flag=False):
     """Use the other features to predict a certain feature.
 
     Args:
@@ -103,7 +104,10 @@ def feature_prediction(train_data, test_data, index):
         )
 
         # Initialize model
-        model = GeneralRNN(args)
+        if flag:
+            model = GeneralRNN(args)
+        else:
+            model = UnivariateRNN(args)
         model.to(args["device"])
         criterion = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(
@@ -149,7 +153,7 @@ def feature_prediction(train_data, test_data, index):
     
     return perf
       
-def one_step_ahead_prediction(train_data, test_data):
+def one_step_ahead_prediction(train_data, test_data, flag=False):
     """Use the previous time-series to predict one-step ahead feature values.
 
     Args:
@@ -199,7 +203,10 @@ def one_step_ahead_prediction(train_data, test_data):
         shuffle=True
     )
     # Initialize model
-    model = GeneralRNN(args)
+    if flag:
+        model = GeneralRNN(args)
+    else:
+        model = UnivariateRNN(args)
     model.to(args["device"])
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(
