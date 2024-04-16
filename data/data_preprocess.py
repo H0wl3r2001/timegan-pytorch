@@ -119,6 +119,8 @@ def data_preprocess(
     output.fill(padding_value)
     time = []
 
+    print(ori_data.values)
+
     # For each uniq id
     for i in tqdm(range(no)):
         # Extract the time-series data with a certain admissionid

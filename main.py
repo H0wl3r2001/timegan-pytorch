@@ -19,6 +19,7 @@ from data.data_preprocess import data_preprocess
 from metrics.metric_utils import (
     feature_prediction, one_step_ahead_prediction, reidentify_score
 )
+from metrics.arima import evaluate_models
 
 from models.timegan import TimeGAN
 from models.utils import timegan_trainer, timegan_generator
@@ -85,8 +86,9 @@ def main(args):
         data_path, args.max_seq_len
     )
 
-    print(f"Processed data: {X.shape} (Idx x MaxSeqLen x Features)\n")
-    print(f"Original data preview:\n{X[:2, :10, :2]}\n")
+    print(f"Processed data shape: {X.shape} (Idx x MaxSeqLen x Features)\n")
+    print(f"Processed data: {len(X[0])}\n")
+    print(f"Original data preview:\n{X[:2, :10, :]}\n")
 
     args.feature_dim = X.shape[-1]
     args.Z_dim = X.shape[-1]
@@ -95,6 +97,9 @@ def main(args):
     train_data, test_data, train_time, test_time = train_test_split(
         X, T, test_size=args.train_rate, random_state=args.seed
     )
+
+    print(f"Train data: {train_data} \n")
+    print(f"Test data: {test_data} \n")
 
     #########################
     # Initialize and Run model
@@ -200,6 +205,37 @@ def main(args):
     print('One step ahead prediction results:\n' +
           f'(1) Ori: {str(np.round(ori_step_ahead_pred_perf, 4))}\n' +
           f'(2) New: {str(np.round(new_step_ahead_pred_perf, 4))}\n')
+
+    # 3. Arima prediction (univariate):
+    #TODO: complete this part
+    if(flag == False):
+
+        p = range(0, 10)
+        q = range(0, 10)
+        d = range(0, 10)
+
+        print("Running Arima prediction using original data...")
+        ori_arima_pred_perf = evaluate_models(
+            train_data, 
+            test_data,
+            p,
+            q,
+            d
+        )
+        print("Running Arima prediction using generated data...")
+        new_arima_pred_perf = evaluate_models(
+            train_data,
+            generated_data,
+            p,
+            q,
+            d
+        )
+
+        step_ahead_pred = [ori_arima_pred_perf, new_arima_pred_perf]
+
+        print('Arima prediction results:\n' +
+            f'(1) Ori: {str(np.round(ori_arima_pred_perf, 4))}\n' +
+            f'(2) New: {str(np.round(new_arima_pred_perf, 4))}\n')
 
     print(f"Total Runtime: {(time.time() - start)/60} mins\n")
 
