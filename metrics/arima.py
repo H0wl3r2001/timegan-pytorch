@@ -3,6 +3,7 @@ from math import sqrt
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_squared_error
 import pandas as pd
+from pmdarima.arima import auto_arima
 
 
 #TODO: make it so the data entering the evaluate models function is in the format [[idx, val]]
@@ -58,3 +59,13 @@ def evaluate_models(train, test, p_values, d_values, q_values):
                     continue
     print('Best ARIMA%s RMSE=%.3f' % (best_cfg, best_score))
     return best_score
+
+
+def eval_model_auto(train, test):
+    warnings.filterwarnings("ignore")
+    train, test = prepare_data(train, test)
+    
+    df = pd.concat([train, test], ignore_index=True)
+    model=auto_arima(df.set_index('idx'), trace=True, error_action='ignore', suppress_warnings=True, seasonal=False)
+
+    model.fit(df.set_index('idx'))
