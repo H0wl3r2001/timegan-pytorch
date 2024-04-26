@@ -6,6 +6,7 @@ import pandas as pd
 from pmdarima.arima import auto_arima
 
 
+
 #TODO: make it so the data entering the evaluate models function is in the format [[idx, val]]
 
 def prepare_data(train, test):
@@ -69,3 +70,29 @@ def eval_model_auto(train, test):
     model=auto_arima(df.set_index('idx'), trace=True, error_action='ignore', suppress_warnings=True, seasonal=False)
 
     model.fit(df.set_index('idx'))
+
+
+def find_best_arima_model(train, test):
+    warnings.filterwarnings("ignore")
+    train_df, test_df = prepare_data(train, test)
+    
+    # Extract training and testing data
+    train_data = train_df['val'].values
+    test_data = test_df['val'].values
+    
+    # Use auto_arima to find the best ARIMA model configuration
+    arima_model = auto_arima(train_data, seasonal=False, trace=True)
+    order = arima_model.order  # Best (p, d, q) order found by auto_arima
+    
+    # Fit the ARIMA model on the training data with the best order
+    model = ARIMA(train_data, order=order)
+    fitted_model = model.fit()
+    
+    # Forecast using the fitted model on the test data
+    forecast= fitted_model.forecast(len(test_data))
+    
+    # Calculate RMSE (Root Mean Squared Error)
+    rmse = sqrt(mean_squared_error(test_data, forecast))
+    
+    # Return the best ARIMA model configuration and RMSE
+    return order, rmse

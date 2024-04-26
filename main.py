@@ -19,7 +19,7 @@ from data.data_preprocess import data_preprocess
 from metrics.metric_utils import (
     feature_prediction, one_step_ahead_prediction, reidentify_score
 )
-from metrics.arima import evaluate_models
+from metrics.arima import find_best_arima_model
 
 from models.timegan import TimeGAN
 from models.utils import timegan_trainer, timegan_generator
@@ -89,6 +89,7 @@ def main(args):
     print(f"Processed data shape: {X.shape} (Idx x MaxSeqLen x Features)\n")
     print(f"Processed data: {len(X[0])}\n")
     print(f"Original data preview:\n{X[:2, :10, :]}\n")
+    print(f"Time preview:\n{T}\n")
 
     args.feature_dim = X.shape[-1]
     args.Z_dim = X.shape[-1]
@@ -100,6 +101,8 @@ def main(args):
 
     print(f"Train data: {train_data} \n")
     print(f"Test data: {test_data} \n")
+    print(f"Train time: {train_time} \n")
+    print(f"Test time: {test_time} \n")
 
     #########################
     # Initialize and Run model
@@ -211,32 +214,38 @@ def main(args):
     #TODO: complete this part
     if(flag == False):
 
-        p = [0, 1, 2, 4, 6, 8, 10]
-        q = range(0, 3)
-        d = range(0, 3)
+        #p = [0, 1, 2]
+        #q = range(0, 3)
+        #d = range(0, 3)
 
         print("Running Arima prediction using original data...")
-        ori_arima_pred_perf = evaluate_models(
-            train_data, 
-            test_data,
-            p,
-            q,
-            d
-        )
-        print("Running Arima prediction using generated data...")
-        new_arima_pred_perf = evaluate_models(
-            train_data,
-            generated_data,
-            p,
-            q,
-            d
-        )
+        #ori_arima_pred_perf = evaluate_models(
+        #    train_data, 
+        #    test_data,
+        #    p,
+        #    q,
+        #    d
+        #)
+        order_og, ori_arima_pred_perf = find_best_arima_model(train_data, test_data)
 
+        print("Running Arima prediction using generated data...")
+        #new_arima_pred_perf = evaluate_models(
+        #    X,
+        #    generated_data,
+        #    p,
+        #    q,
+        #    d
+        #)
+        order_synth, new_arima_pred_perf = find_best_arima_model(train_data, generated_data)
         step_ahead_pred = [ori_arima_pred_perf, new_arima_pred_perf]
 
         print('Arima prediction results:\n' +
             f'(1) Ori: {str(np.round(ori_arima_pred_perf, 4))}\n' +
             f'(2) New: {str(np.round(new_arima_pred_perf, 4))}\n')
+        
+        print('Arima order results:\n' +
+            f'(1) Ori: {order_og}\n' +
+            f'(2) New: {order_synth}\n')
 
     print(f"Total Runtime: {(time.time() - start)/60} mins\n")
 
