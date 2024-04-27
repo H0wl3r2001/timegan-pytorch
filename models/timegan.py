@@ -429,6 +429,10 @@ class TimeGAN(torch.nn.Module):
 
         # Supervised loss
         S_loss = torch.nn.functional.mse_loss(H_hat_supervise[:,:-1,:], H[:,1:,:])        # Teacher forcing next output
+
+        arima_prediction = auto_arima(H_hat_supervise[:,:-1,:])
+        arima_loss = cd(arima_prediction)
+        supervisor_loss = S_loss + alpha * arima_loss
         return S_loss
 
     def _discriminator_forward(self, X, T, Z, gamma=1):
@@ -502,6 +506,20 @@ class TimeGAN(torch.nn.Module):
 
         return G_loss
 
+    def _predict(self, X, T):
+        """Predict the next step
+        Args:
+            - X: the input features
+            - T: the temporal information
+        Returns:
+            - X_hat: the predicted features
+        """
+        # Forward Pass
+        H = self.embedder(X, T)
+        H_hat_supervise = self.supervisor(H, T)
+        X_hat = self.recovery(H_hat_supervise, T)
+        return X_hat
+    
     def _inference(self, Z, T):
         """Inference for generating synthetic data
         Args:
@@ -554,6 +572,14 @@ class TimeGAN(torch.nn.Module):
                 raise ValueError("`Z` is not given")
 
             # Generator
+            X = self._inference(Z,T)
+            H = self.embedder(X, T)
+            H_hat_supervise = self.supervisor(H, T)
+            prediction = auto_arima(H_hat_supervise[:,:-1,:])
+            loss1 = cd(prediction)
+
+
+
             loss = self._generator_forward(X, T, Z)
 
         elif obj == "discriminator":
@@ -566,7 +592,7 @@ class TimeGAN(torch.nn.Module):
             return loss
 
         elif obj == "inference":
-
+            
             X_hat = self._inference(Z, T)
             X_hat = X_hat.cpu().detach()
 
