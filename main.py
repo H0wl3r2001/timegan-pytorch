@@ -19,7 +19,7 @@ from data.data_preprocess import data_preprocess
 from metrics.metric_utils import (
     feature_prediction, one_step_ahead_prediction, reidentify_score
 )
-from metrics.arima import find_best_arima_model
+from metrics.arima import find_best_arima_model, generate_arima_models
 
 from models.timegan import TimeGAN
 from models.utils import timegan_trainer, timegan_generator
@@ -105,6 +105,11 @@ def main(args):
     print(f"Test time: {test_time} \n")
 
     #########################
+    # Initialize model
+    #########################
+    m1, m2, m3, m4 = generate_arima_models(train_data, test_data)
+
+    #########################
     # Initialize and Run model
     #########################
 
@@ -114,7 +119,7 @@ def main(args):
     model = TimeGAN(args)
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args)
-    generated_data = timegan_generator(model, test_time, args)
+    generated_data = timegan_generator(model, T, args)
     generated_time = test_time
 
     # Log end time
