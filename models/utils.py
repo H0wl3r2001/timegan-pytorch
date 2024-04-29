@@ -2,7 +2,7 @@
 # Local modules
 import os
 import pickle
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 
 # 3rd party modules
 import numpy as np
@@ -88,7 +88,7 @@ def supervisor_trainer(
             )
             writer.flush()
 
-def joint_trainer(
+def joint_trainer_1st_phase(
     model: torch.nn.Module, 
     dataloader: torch.utils.data.DataLoader, 
     e_opt: torch.optim.Optimizer, 
@@ -98,6 +98,91 @@ def joint_trainer(
     d_opt: torch.optim.Optimizer, 
     args: Dict, 
     writer: Union[torch.utils.tensorboard.SummaryWriter, type(None)]=None, 
+) -> None:
+    """The training loop for training the model altogether
+    """
+    logger = trange(
+        args.sup_epochs, #/ 50, 
+        desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
+    )
+    
+    for epoch in logger:
+        for X_mb, T_mb in dataloader:
+            ## Generator Training
+            for _ in range(2):
+                # Random Generator
+                Z_mb = torch.rand((args.batch_size, args.max_seq_len, args.Z_dim))
+
+                # Forward Pass (Generator)
+                model.zero_grad()
+                G_loss = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator")
+                G_loss.backward()
+                G_loss = np.sqrt(G_loss.item())
+
+                # Update model parameters
+                g_opt.step()
+                s_opt.step()
+
+                # Forward Pass (Embedding)
+                model.zero_grad()
+                E_loss, _, E_loss_T0 = model(X=X_mb, T=T_mb, Z=Z_mb, obj="autoencoder")
+                E_loss.backward()
+                E_loss = np.sqrt(E_loss.item())
+                
+                # Update model parameters
+                e_opt.step()
+                r_opt.step()
+
+            # Random Generator
+            Z_mb = torch.rand((args.batch_size, args.max_seq_len, args.Z_dim))
+
+            ## Discriminator Training
+            model.zero_grad()
+            # Forward Pass
+            D_loss = model(X=X_mb, T=T_mb, Z=Z_mb, obj="discriminator")
+
+            # Check Discriminator loss
+            if D_loss > args.dis_thresh:
+                # Backward Pass
+                D_loss.backward()
+
+                # Update model parameters
+                d_opt.step()
+            D_loss = D_loss.item()
+
+        logger.set_description(
+            f"Epoch: {epoch}, E: {E_loss:.4f}, G: {G_loss:.4f}, D: {D_loss:.4f}"
+        )
+        if writer:
+            writer.add_scalar(
+                'Joint/Embedding_Loss:', 
+                E_loss, 
+                epoch
+            )
+            writer.add_scalar(
+                'Joint/Generator_Loss:', 
+                G_loss, 
+                epoch
+            )
+            writer.add_scalar(
+                'Joint/Discriminator_Loss:', 
+                D_loss, 
+                epoch
+            )
+            writer.flush()
+
+#TODO: Implement 2nd phase of joint training, with the predictor adding to the G loss
+def joint_trainer_2nd_phase_arima(
+    model: torch.nn.Module, 
+    dataloader: torch.utils.data.DataLoader, 
+    e_opt: torch.optim.Optimizer, 
+    r_opt: torch.optim.Optimizer, 
+    s_opt: torch.optim.Optimizer, 
+    g_opt: torch.optim.Optimizer, 
+    d_opt: torch.optim.Optimizer, 
+    args: Dict, 
+    predictor: tuple = None,
+    writer: Union[torch.utils.tensorboard.SummaryWriter, type(None)]=None,
 ) -> None:
     """The training loop for training the model altogether
     """
@@ -115,7 +200,7 @@ def joint_trainer(
 
                 # Forward Pass (Generator)
                 model.zero_grad()
-                G_loss = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator")
+                G_loss = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator_2nd_phase_arima")
                 G_loss.backward()
                 G_loss = np.sqrt(G_loss.item())
 
@@ -223,7 +308,7 @@ def timegan_trainer(model, data, time, args):
     )
 
     print("\nStart Joint Training")
-    joint_trainer(
+    joint_trainer_1st_phase(
         model=model,
         dataloader=dataloader,
         e_opt=e_opt,

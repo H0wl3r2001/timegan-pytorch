@@ -110,13 +110,13 @@ def generate_arima_models(train, test):
     order = arima_model.order  # Best (p, d, q) order found by auto_arima
 
     # Fit the ARIMA model on the training data with the best order, and then others not as optimized
-    model1 = ARIMA(train_data, order=order)
-    model2 = ARIMA(train_data, order=(order[0], order[1], order[2]+1))
-    model3 = ARIMA(train_data, order=(order[0], order[1]+1, order[2]))
-    model4 = ARIMA(train_data, order=(order[0]+1, order[1], order[2]))
-    fitted_model1 = model1.fit()
-    fitted_model2 = model2.fit()
-    fitted_model3 = model3.fit()
-    fitted_model4 = model4.fit()
+    #model1 = ARIMA(train_data, order=order)
+    #model2 = ARIMA(train_data, order=(order[0], order[1], order[2]+1))
+    #model3 = ARIMA(train_data, order=(order[0], order[1]+1, order[2]))
+    #model4 = ARIMA(train_data, order=(order[0]+1, order[1], order[2]))
+    #fitted_model1 = model1.fit()
+    #fitted_model2 = model2.fit()
+    #fitted_model3 = model3.fit()
+    #fitted_model4 = model4.fit()
 
-    return fitted_model1, fitted_model2, fitted_model3, fitted_model4
+    return order, (order[0], order[1], order[2]+1), (order[0], order[1]+1, order[2]), (order[0]+1, order[1], order[2])

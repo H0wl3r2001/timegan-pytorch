@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import torch
 import numpy as np
+from models.utils import timegan_generator
 
 class EmbeddingNetwork(torch.nn.Module):
     """The embedding network (encoder) for TimeGAN
@@ -375,7 +376,7 @@ class TimeGAN(torch.nn.Module):
     - https://papers.nips.cc/paper/2019/hash/c9efe5f26cd17ba6216bbe2a7d26d490-Abstract.html
     - https://github.com/jsyoon0823/TimeGAN
     """
-    def __init__(self, args):
+    def __init__(self, args, T2):
         super(TimeGAN, self).__init__()
         self.device = args.device
         self.feature_dim = args.feature_dim
@@ -383,6 +384,8 @@ class TimeGAN(torch.nn.Module):
         self.hidden_dim = args.hidden_dim
         self.max_seq_len = args.max_seq_len
         self.batch_size = args.batch_size
+        self.T2 = T2
+        self.args = args
 
         self.embedder = EmbeddingNetwork(args)
         self.recovery = RecoveryNetwork(args)
@@ -501,6 +504,51 @@ class TimeGAN(torch.nn.Module):
         G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V
 
         return G_loss
+    
+    def _generator_forward_2nd(self, X, X2, T, Z, gamma=1):
+        """The generator forward pass. 2nd phase where the output of the predictor is used as input to the generator loss function
+        Args:
+            - X: the original feature input
+            - X2: the synthetic data generated to condition the predictor
+            - T: the temporal information
+            - Z: the noise for generator input
+        Returns:
+            - G_loss: the generator's loss
+        """
+        # Supervisor Forward Pass
+        H = self.embedder(X, T)
+        H_hat_supervise = self.supervisor(H, T)
+
+        # Generator Forward Pass
+        E_hat = self.generator(Z, T)
+        H_hat = self.supervisor(E_hat, T)
+
+        # Synthetic data generated
+        X_hat = self.recovery(H_hat, T)
+
+        # Generator Loss
+        # 1. Adversarial loss
+        Y_fake = self.discriminator(H_hat, T)        # Output of supervisor
+        Y_fake_e = self.discriminator(E_hat, T)      # Output of generator
+
+        G_loss_U = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake, torch.ones_like(Y_fake))
+        G_loss_U_e = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake_e, torch.ones_like(Y_fake_e))
+
+        # 2. Supervised loss
+        G_loss_S = torch.nn.functional.mse_loss(H_hat_supervise[:,:-1,:], H[:,1:,:])        # Teacher forcing next output
+
+        # 3. Two Momments
+        G_loss_V1 = torch.mean(torch.abs(torch.sqrt(X_hat.var(dim=0, unbiased=False) + 1e-6) - torch.sqrt(X.var(dim=0, unbiased=False) + 1e-6)))
+        G_loss_V2 = torch.mean(torch.abs((X_hat.mean(dim=0)) - (X.mean(dim=0))))
+
+        G_loss_V = G_loss_V1 + G_loss_V2
+
+        #TODO initiate arima model here and condition it to X2. Then use the output of the arima model to condition the generator
+
+        # 4. Summation
+        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V
+
+        return G_loss
 
     def _inference(self, Z, T):
         """Inference for generating synthetic data
@@ -555,6 +603,17 @@ class TimeGAN(torch.nn.Module):
 
             # Generator
             loss = self._generator_forward(X, T, Z)
+
+        elif obj == "generator_2nd_phase_arima":
+            if Z is None:
+                raise ValueError("`Z` is not given")
+            
+            #generate synthetic data to condition model
+            X_hat = self._inference(Z, self.T2)
+            X_hat = X_hat.cpu().detach().numpy()
+
+            # Generator
+            loss = self._generator_forward_2nd(X, T, Z)
 
         elif obj == "discriminator":
             if Z is None:

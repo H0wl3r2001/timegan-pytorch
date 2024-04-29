@@ -105,9 +105,9 @@ def main(args):
     print(f"Test time: {test_time} \n")
 
     #########################
-    # Initialize model
+    # Initialize arima model (p,q,d) orders
     #########################
-    m1, m2, m3, m4 = generate_arima_models(train_data, test_data)
+    o1, o2, o3, o4 = generate_arima_models(train_data, test_data)
 
     #########################
     # Initialize and Run model
@@ -116,10 +116,11 @@ def main(args):
     # Log start time
     start = time.time()
 
-    model = TimeGAN(args)
+    model = TimeGAN(args, T) #TODO change T
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args)
     generated_data = timegan_generator(model, T, args)
+    generated_data = generated_data #TODO: splice this data from what corresponds to the train data, keeping the "test_data" for evaluation
     generated_time = test_time
 
     # Log end time
