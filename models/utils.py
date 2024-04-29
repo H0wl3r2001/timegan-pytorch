@@ -180,8 +180,7 @@ def joint_trainer_2nd_phase_arima(
     s_opt: torch.optim.Optimizer, 
     g_opt: torch.optim.Optimizer, 
     d_opt: torch.optim.Optimizer, 
-    args: Dict, 
-    predictor: tuple = None,
+    args: Dict,
     writer: Union[torch.utils.tensorboard.SummaryWriter, type(None)]=None,
 ) -> None:
     """The training loop for training the model altogether

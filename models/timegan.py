@@ -2,6 +2,7 @@
 import torch
 import numpy as np
 from models.utils import timegan_generator
+from statsmodels.tsa.arima.model import ARIMA
 
 class EmbeddingNetwork(torch.nn.Module):
     """The embedding network (encoder) for TimeGAN
@@ -376,7 +377,7 @@ class TimeGAN(torch.nn.Module):
     - https://papers.nips.cc/paper/2019/hash/c9efe5f26cd17ba6216bbe2a7d26d490-Abstract.html
     - https://github.com/jsyoon0823/TimeGAN
     """
-    def __init__(self, args, T2):
+    def __init__(self, args, T2, base_data, arima_order=None):
         super(TimeGAN, self).__init__()
         self.device = args.device
         self.feature_dim = args.feature_dim
@@ -386,6 +387,8 @@ class TimeGAN(torch.nn.Module):
         self.batch_size = args.batch_size
         self.T2 = T2
         self.args = args
+        self.arima_order = arima_order
+        self.base_data = base_data
 
         self.embedder = EmbeddingNetwork(args)
         self.recovery = RecoveryNetwork(args)
@@ -505,7 +508,7 @@ class TimeGAN(torch.nn.Module):
 
         return G_loss
     
-    def _generator_forward_2nd(self, X, X2, T, Z, gamma=1):
+    def _generator_forward_2nd_arima(self, X, X2, T, Z, gamma=1):
         """The generator forward pass. 2nd phase where the output of the predictor is used as input to the generator loss function
         Args:
             - X: the original feature input
@@ -543,9 +546,15 @@ class TimeGAN(torch.nn.Module):
 
         G_loss_V = G_loss_V1 + G_loss_V2
 
-        #TODO initiate arima model here and condition it to X2. Then use the output of the arima model to condition the generator
+        #TODO calculate the median values for 95% confidence interval and add that to the generator loss function
+        # 4. ARIMA model and confidence interval loss calculation
+        model = ARIMA(X2, order=self.arima_order)
+        fitted_model = model.fit()
+        forecast= fitted_model.get_forecast(len(self.T2)//3)
+        conf_int = forecast.conf_int(alpha=0.05)
 
-        # 4. Summation
+        average_conf_int = np.mean(conf_int[:,1] - conf_int[:,0])
+        # 5. Summation
         G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V
 
         return G_loss
@@ -612,8 +621,12 @@ class TimeGAN(torch.nn.Module):
             X_hat = self._inference(Z, self.T2)
             X_hat = X_hat.cpu().detach().numpy()
 
+            #couple orignal data with the remainder coming from the generated data, making it into data that can be used to condition the generator
+
+            X_hat = np.concatenate((np.array(self.base_data), X_hat[np.array(self.base_data).shape[0]:]))
+
             # Generator
-            loss = self._generator_forward_2nd(X, T, Z)
+            loss = self._generator_forward_2nd_arima(X, X_hat, T, Z)
 
         elif obj == "discriminator":
             if Z is None:

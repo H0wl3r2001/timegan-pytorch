@@ -116,11 +116,13 @@ def main(args):
     # Log start time
     start = time.time()
 
-    model = TimeGAN(args, T) #TODO change T
+    T1 = T[:int(len(test_time)*1.5)]
+
+    model = TimeGAN(args, T1, test_data, o1) 
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args)
     generated_data = timegan_generator(model, T, args)
-    generated_data = generated_data #TODO: splice this data from what corresponds to the train data, keeping the "test_data" for evaluation
+    generated_data = generated_data[len(test_data):] #TODO: splice this data from what corresponds to the train data, keeping the "test_data" for evaluation
     generated_time = test_time
 
     # Log end time

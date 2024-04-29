@@ -23,6 +23,16 @@ def prepare_data(train, test):
     
     return new_train, new_test
 
+def prepare_data2(train):
+    new_train = []
+    
+    for i in range(len(train)):
+        new_train.append([i, train[i][0][0]])
+
+    new_train = pd.DataFrame(new_train, columns=['idx', 'val'])
+    
+    return new_train
+
 
 def evaluate_arima_model(train, test, arima_order):
     history = [x for x in train]
