@@ -102,7 +102,7 @@ def joint_trainer_1st_phase(
     """The training loop for training the model altogether
     """
     logger = trange(
-        args.sup_epochs, #/ 50, 
+        args.sup_epochs // 50, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
     
@@ -186,7 +186,7 @@ def joint_trainer_2nd_phase_arima(
     """The training loop for training the model altogether
     """
     logger = trange(
-        args.sup_epochs, 
+        args.sup_epochs - args.sup_epochs // 50, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
     
@@ -308,6 +308,19 @@ def timegan_trainer(model, data, time, args):
 
     print("\nStart Joint Training")
     joint_trainer_1st_phase(
+        model=model,
+        dataloader=dataloader,
+        e_opt=e_opt,
+        r_opt=r_opt,
+        s_opt=s_opt,
+        g_opt=g_opt,
+        d_opt=d_opt,
+        args=args,
+        writer=writer,
+    )
+
+    print("\nStart Joint Training (2nd Phase), with predictor")
+    joint_trainer_2nd_phase_arima(
         model=model,
         dataloader=dataloader,
         e_opt=e_opt,
