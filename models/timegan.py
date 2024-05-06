@@ -518,6 +518,7 @@ class TimeGAN(torch.nn.Module):
             - Z: the noise for generator input
         Returns:
             - G_loss: the generator's loss
+            - average_conf_int: the average difference between the values of the 95% confidence interval of the ARIMA model
         """
         # Supervisor Forward Pass
         H = self.embedder(X, T)
@@ -565,7 +566,7 @@ class TimeGAN(torch.nn.Module):
         # 5. Summation
         G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + average_conf_int
 
-        return G_loss
+        return G_loss, average_conf_int
 
     def _inference(self, Z, T):
         """Inference for generating synthetic data

@@ -10,6 +10,7 @@ from tqdm import tqdm, trange
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
+import pickle
 
 # Self-written modules
 from models.dataset import TimeGANDataset
@@ -189,6 +190,9 @@ def joint_trainer_2nd_phase_arima(
         args.sup_epochs - args.sup_epochs // 50, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
+
+    avrg_conf_interv = []
+    local_conf_interv = []
     
     for epoch in logger:
         for X_mb, T_mb in dataloader:
@@ -199,9 +203,10 @@ def joint_trainer_2nd_phase_arima(
 
                 # Forward Pass (Generator)
                 model.zero_grad()
-                G_loss = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator_2nd_phase_arima")
+                G_loss, conf_int = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator_2nd_phase_arima")
                 G_loss.backward()
                 G_loss = np.sqrt(G_loss.item())
+                local_conf_interv.append(conf_int)
 
                 # Update model parameters
                 g_opt.step()
@@ -234,6 +239,9 @@ def joint_trainer_2nd_phase_arima(
                 d_opt.step()
             D_loss = D_loss.item()
 
+        
+        avrg_conf_interv.append(np.mean(local_conf_interv))
+        
         logger.set_description(
             f"Epoch: {epoch}, E: {E_loss:.4f}, G: {G_loss:.4f}, D: {D_loss:.4f}"
         )
@@ -254,6 +262,9 @@ def joint_trainer_2nd_phase_arima(
                 epoch
             )
             writer.flush()
+
+    with open(f"{args.model_path}/a_order_{model.arima_order}_conf_intrv.pickle", "wb") as fb:
+        pickle.dump(avrg_conf_interv, fb)
 
 def timegan_trainer(model, data, time, args):
     """The training procedure for TimeGAN
