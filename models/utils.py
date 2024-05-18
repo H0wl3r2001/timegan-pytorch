@@ -263,7 +263,7 @@ def joint_trainer_2nd_phase_arima(
             )
             writer.flush()
 
-    with open(f"{args.model_path}/a_order_{model.arima_order}_conf_intrv.pickle", "wb") as fb:
+    with open(f"{args.model_path}/aOrder_{model.arima_order[0]}_{model.arima_order[1]}_{model.arima_order[2]}_confIntrv.pickle", "wb") as fb:
         pickle.dump(avrg_conf_interv, fb)
 
 def timegan_trainer(model, data, time, args):

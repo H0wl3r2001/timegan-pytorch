@@ -10,6 +10,7 @@ import time
 
 # 3rd-Party Modules
 import numpy as np
+import pandas as pd
 import torch
 import joblib
 from sklearn.model_selection import train_test_split
@@ -81,6 +82,17 @@ def main(args):
     # Load and preprocess data for model
     #########################
 
+    if not os.path.exists("data/sin_func.csv"):
+        idx = np.arange(0, 500)
+        sin_values = np.sin(idx * (2 * np.pi/500))
+
+        df = pd.DataFrame({
+            "Idx": idx,
+            "sin_value": sin_values
+        })
+        df.to_csv("data/sin_func.csv", index=False)
+
+    
     data_path = "data/python_5years_alt.csv"
     X, T, _, args.max_seq_len, args.padding_value = data_preprocess(
         data_path, args.max_seq_len
@@ -116,9 +128,9 @@ def main(args):
     # Log start time
     start = time.time()
 
-    T1 = T[:int(len(test_time)*1.5)]
+    T1 = T[:int(len(train_time)*1.5)]
 
-    model = TimeGAN(args, T1, test_data, o1) 
+    model = TimeGAN(args, T1, train_data, o1) 
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args)
     generated_data = timegan_generator(model, T, args)
@@ -309,15 +321,15 @@ if __name__ == "__main__":
     # Model Arguments
     parser.add_argument(
         '--emb_epochs',
-        default=600,
+        default=2041,
         type=int)
     parser.add_argument(
         '--sup_epochs',
-        default=600,
+        default=2041,
         type=int)
     parser.add_argument(
         '--gan_epochs',
-        default=600,
+        default=2041,
         type=int)
     parser.add_argument(
         '--batch_size',

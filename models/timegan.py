@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import torch
 import numpy as np
+import math
 from models.utils import timegan_generator
 from statsmodels.tsa.arima.model import ARIMA
 from metrics.arima import prepare_data2
@@ -564,7 +565,7 @@ class TimeGAN(torch.nn.Module):
 
         average_conf_int = np.mean(conf_int[:,1] - conf_int[:,0])
         # 5. Summation
-        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + average_conf_int
+        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + abs(average_conf_int - 0.5)
 
         return G_loss, average_conf_int
 
