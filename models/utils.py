@@ -103,7 +103,7 @@ def joint_trainer_1st_phase(
     """The training loop for training the model altogether
     """
     logger = trange(
-        args.sup_epochs // 50, 
+        args.sup_epochs, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
     
@@ -266,6 +266,99 @@ def joint_trainer_2nd_phase_arima(
     with open(f"{args.model_path}/aOrder_{model.arima_order[0]}_{model.arima_order[1]}_{model.arima_order[2]}_confIntrv.pickle", "wb") as fb:
         pickle.dump(avrg_conf_interv, fb)
 
+def joint_trainer_2nd_phase_rnn(
+    model: torch.nn.Module, 
+    dataloader: torch.utils.data.DataLoader, 
+    e_opt: torch.optim.Optimizer, 
+    r_opt: torch.optim.Optimizer, 
+    s_opt: torch.optim.Optimizer, 
+    g_opt: torch.optim.Optimizer, 
+    d_opt: torch.optim.Optimizer, 
+    args: Dict,
+    writer: Union[torch.utils.tensorboard.SummaryWriter, type(None)]=None,
+) -> None:
+    """The training loop for training the model altogether
+    """
+    logger = trange(
+        args.sup_epochs - args.sup_epochs // 50, 
+        desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
+    )
+
+    avrg_conf_interv = []
+    local_conf_interv = []
+    
+    for epoch in logger:
+        for X_mb, T_mb in dataloader:
+            ## Generator Training
+            for _ in range(2):
+                # Random Generator
+                Z_mb = torch.rand((args.batch_size, args.max_seq_len, args.Z_dim))
+
+                # Forward Pass (Generator)
+                model.zero_grad()
+                G_loss, conf_int = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator_2nd_phase_rnn")
+                G_loss.backward()
+                G_loss = np.sqrt(G_loss.item())
+                local_conf_interv.append(conf_int)
+
+                # Update model parameters
+                g_opt.step()
+                s_opt.step()
+
+                # Forward Pass (Embedding)
+                model.zero_grad()
+                E_loss, _, E_loss_T0 = model(X=X_mb, T=T_mb, Z=Z_mb, obj="autoencoder")
+                E_loss.backward()
+                E_loss = np.sqrt(E_loss.item())
+                
+                # Update model parameters
+                e_opt.step()
+                r_opt.step()
+
+            # Random Generator
+            Z_mb = torch.rand((args.batch_size, args.max_seq_len, args.Z_dim))
+
+            ## Discriminator Training
+            model.zero_grad()
+            # Forward Pass
+            D_loss = model(X=X_mb, T=T_mb, Z=Z_mb, obj="discriminator")
+
+            # Check Discriminator loss
+            if D_loss > args.dis_thresh:
+                # Backward Pass
+                D_loss.backward()
+
+                # Update model parameters
+                d_opt.step()
+            D_loss = D_loss.item()
+
+        
+        avrg_conf_interv.append(np.mean(local_conf_interv))
+        
+        logger.set_description(
+            f"Epoch: {epoch}, E: {E_loss:.4f}, G: {G_loss:.4f}, D: {D_loss:.4f}"
+        )
+        if writer:
+            writer.add_scalar(
+                'Joint/Embedding_Loss:', 
+                E_loss, 
+                epoch
+            )
+            writer.add_scalar(
+                'Joint/Generator_Loss:', 
+                G_loss, 
+                epoch
+            )
+            writer.add_scalar(
+                'Joint/Discriminator_Loss:', 
+                D_loss, 
+                epoch
+            )
+            writer.flush()
+
+    with open(f"{args.model_path}/aOrder_{model.arima_order[0]}_{model.arima_order[1]}_{model.arima_order[2]}_confIntrv.pickle", "wb") as fb:
+        pickle.dump(avrg_conf_interv, fb)
+
 def timegan_trainer(model, data, time, args):
     """The training procedure for TimeGAN
     Args:
@@ -330,18 +423,18 @@ def timegan_trainer(model, data, time, args):
         writer=writer,
     )
 
-    print("\nStart Joint Training (2nd Phase), with predictor")
-    joint_trainer_2nd_phase_arima(
-        model=model,
-        dataloader=dataloader,
-        e_opt=e_opt,
-        r_opt=r_opt,
-        s_opt=s_opt,
-        g_opt=g_opt,
-        d_opt=d_opt,
-        args=args,
-        writer=writer,
-    )
+    #print("\nStart Joint Training (2nd Phase), with predictor")
+    #joint_trainer_2nd_phase_rnn(
+    #    model=model,
+    #    dataloader=dataloader,
+    #    e_opt=e_opt,
+    #    r_opt=r_opt,
+    #    s_opt=s_opt,
+    #    g_opt=g_opt,
+    #    d_opt=d_opt,
+    #    args=args,
+    #    writer=writer,
+    #)
 
     # Save model, args, and hyperparameters
     torch.save(args, f"{args.model_path}/args.pickle")

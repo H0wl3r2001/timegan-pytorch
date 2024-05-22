@@ -20,7 +20,8 @@ from data.data_preprocess import data_preprocess
 from metrics.metric_utils import (
     feature_prediction, one_step_ahead_prediction, reidentify_score
 )
-from metrics.arima import find_best_arima_model, generate_arima_models
+from metrics.arima import find_best_arima_model, generate_arima_models, prepare_data2
+from metrics.rnn_confidence import RNNPredictor, train_model, predict_with_confidence
 
 from models.timegan import TimeGAN
 from models.utils import timegan_trainer, timegan_generator
@@ -122,6 +123,16 @@ def main(args):
     o1, o2, o3, o4 = generate_arima_models(train_data, test_data)
 
     #########################
+    # Initialize rnn model
+    #########################
+    #t2 = prepare_data2(train_data)
+
+    #x2 = t2['idx'].values
+    #x2 = torch.FloatTensor(x2).unsqueeze(-1).unsqueeze(1)
+    rnn_model = RNNPredictor(input_size=1, hidden_size=50, num_layers=1, output_size=1, model='rnn')#.to(x2.device)
+    #train_model(rnn_model, x2, y2, num_epochs=100, learning_rate=0.01)
+
+    #########################
     # Initialize and Run model
     #########################
 
@@ -130,7 +141,7 @@ def main(args):
 
     T1 = T[:int(len(train_time)*1.5)]
 
-    model = TimeGAN(args, T1, train_data, o1) 
+    model = TimeGAN(args, T1, train_data, rnn_model) 
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args)
     generated_data = timegan_generator(model, T, args)

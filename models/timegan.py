@@ -5,6 +5,7 @@ import math
 from models.utils import timegan_generator
 from statsmodels.tsa.arima.model import ARIMA
 from metrics.arima import prepare_data2
+from metrics.rnn_confidence import RNNPredictor, train_model,predict_with_confidence,predict_next_n_with_avg_confidence_interval
 
 class EmbeddingNetwork(torch.nn.Module):
     """The embedding network (encoder) for TimeGAN
@@ -379,7 +380,7 @@ class TimeGAN(torch.nn.Module):
     - https://papers.nips.cc/paper/2019/hash/c9efe5f26cd17ba6216bbe2a7d26d490-Abstract.html
     - https://github.com/jsyoon0823/TimeGAN
     """
-    def __init__(self, args, T2, base_data, arima_order=None):
+    def __init__(self, args, T2, base_data, model=None):
         super(TimeGAN, self).__init__()
         self.device = args.device
         self.feature_dim = args.feature_dim
@@ -389,7 +390,7 @@ class TimeGAN(torch.nn.Module):
         self.batch_size = args.batch_size
         self.T2 = T2
         self.args = args
-        self.arima_order = arima_order
+        self.model = model
         self.base_data = base_data
 
         self.embedder = EmbeddingNetwork(args)
@@ -558,12 +559,76 @@ class TimeGAN(torch.nn.Module):
 
         #TODO calculate the average difference between values of the 95% confidence interval and add that to the generator loss function
         # 4. ARIMA model and confidence interval loss calculation
-        model = ARIMA(X2['val'].values, order=self.arima_order)
+        model = ARIMA(X2['val'].values, order=self.model)
         fitted_model = model.fit()
         forecast= fitted_model.get_forecast(len(self.T2)//3)
         conf_int = forecast.conf_int(alpha=0.05)
 
         average_conf_int = np.mean(conf_int[:,1] - conf_int[:,0])
+        # 5. Summation
+        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + abs(average_conf_int - 0.5)
+
+        return G_loss, average_conf_int
+    
+    def _generator_forward_2nd_rnn(self, X, T, Z, gamma=1):
+        """The generator forward pass. 2nd phase where the output of the predictor is used as input to the generator loss function
+        Args:
+            - X: the original feature input
+            - X2: the synthetic data generated to condition the predictor
+            - T: the temporal information
+            - Z: the noise for generator input
+        Returns:
+            - G_loss: the generator's loss
+            - average_conf_int: the average difference between the values of the 95% confidence interval of the rnn model
+        """
+        # Supervisor Forward Pass
+        H = self.embedder(X, T)
+        H_hat_supervise = self.supervisor(H, T)
+
+        # Generator Forward Pass
+        E_hat = self.generator(Z, T)
+        H_hat = self.supervisor(E_hat, T)
+
+        # Synthetic data generated
+        X_hat = self.recovery(H_hat, T)
+
+        # Generator Loss
+        # 1. Adversarial loss
+        Y_fake = self.discriminator(H_hat, T)        # Output of supervisor
+        Y_fake_e = self.discriminator(E_hat, T)      # Output of generator
+
+        G_loss_U = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake, torch.ones_like(Y_fake))
+        G_loss_U_e = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake_e, torch.ones_like(Y_fake_e))
+
+        # 2. Supervised loss
+        G_loss_S = torch.nn.functional.mse_loss(H_hat_supervise[:,:-1,:], H[:,1:,:])        # Teacher forcing next output
+
+        # 3. Two Momments
+        G_loss_V1 = torch.mean(torch.abs(torch.sqrt(X_hat.var(dim=0, unbiased=False) + 1e-6) - torch.sqrt(X.var(dim=0, unbiased=False) + 1e-6)))
+        G_loss_V2 = torch.mean(torch.abs((X_hat.mean(dim=0)) - (X.mean(dim=0))))
+
+        G_loss_V = G_loss_V1 + G_loss_V2
+
+        with torch.no_grad():
+            Z1 = torch.rand((len(self.T2), self.args.max_seq_len, self.args.Z_dim))
+            X2 = self._inference(Z1, self.T2)
+            X2 = X2.cpu().detach().numpy()
+            X2 = np.concatenate((np.array(self.base_data), X2[np.array(self.base_data).shape[0]:]))
+            X2 = prepare_data2(X2)
+
+        #TODO calculate the average difference between values of the 95% confidence interval and add that to the generator loss function
+        # 4. Rnn model and confidence interval loss calculation
+        XT = X2['idx'].values
+        YT = X2['val'].values
+
+        XT = torch.FloatTensor(XT).unsqueeze(-1).unsqueeze(1)
+        YT = torch.FloatTensor(YT).unsqueeze(-1)
+
+
+        rnn_model = RNNPredictor(input_size=1, hidden_size=50, num_layers=1, output_size=1, model='rnn').to(XT.device)
+        train_model(rnn_model, XT, YT, num_epochs=100, learning_rate=0.01)
+
+        average_conf_int = predict_next_n_with_avg_confidence_interval(rnn_model, X2, len(self.T2)//3, alpha=0.05)
         # 5. Summation
         G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + abs(average_conf_int - 0.5)
 
@@ -646,6 +711,21 @@ class TimeGAN(torch.nn.Module):
             loss = self._discriminator_forward(X, T, Z)
             
             return loss
+
+        elif obj == "generator_2nd_phase_rnn":
+            if Z is None:
+                raise ValueError("`Z` is not given")
+            
+            #generate synthetic data to condition model
+            #X_hat = self._inference(Z, self.T2)
+            #X_hat = X_hat.cpu().detach().numpy()
+
+            #couple orignal data with the remainder coming from the generated data, making it into data that can be used to condition the generator
+
+            #X_hat = np.concatenate((np.array(self.base_data), X_hat[np.array(self.base_data).shape[0]:]))
+
+            # Generator
+            loss = self._generator_forward_2nd_rnn(X, T, Z)        
 
         elif obj == "inference":
 
