@@ -4,6 +4,7 @@ import numpy as np
 import math
 from models.utils import timegan_generator
 from statsmodels.tsa.arima.model import ARIMA
+from sklearn.metrics import mean_squared_error
 from metrics.arima import prepare_data2
 from metrics.rnn_confidence import RNNPredictor, train_model,predict_with_confidence,predict_next_n_with_avg_confidence_interval
 
@@ -465,9 +466,19 @@ class TimeGAN(torch.nn.Module):
         D_loss_fake = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake, torch.zeros_like(Y_fake))
         D_loss_fake_e = torch.nn.functional.binary_cross_entropy_with_logits(Y_fake_e, torch.zeros_like(Y_fake_e))
 
+        with torch.no_grad():
+            Z1 = torch.rand((len(T), self.args.max_seq_len, self.args.Z_dim))
+            X2 = self._inference(Z1, T)
+            X2 = X2.cpu().detach().numpy()
+            X2 = prepare_data2(X2)
+
+        base_data = prepare_data2(self.base_data)
+
+        avr_diff = mean_squared_error(X2['val'], base_data['val'][:len(X2['val'])])
+
         D_loss = D_loss_real + D_loss_fake + gamma * D_loss_fake_e
 
-        return D_loss
+        return D_loss, avr_diff
 
     def _generator_forward(self, X, T, Z, gamma=1):
         """The generator forward pass
@@ -559,12 +570,15 @@ class TimeGAN(torch.nn.Module):
 
         #TODO calculate the average difference between values of the 95% confidence interval and add that to the generator loss function
         # 4. ARIMA model and confidence interval loss calculation
-        model = ARIMA(X2['val'].values, order=self.model)
-        fitted_model = model.fit()
-        forecast= fitted_model.get_forecast(len(self.T2)//3)
-        conf_int = forecast.conf_int(alpha=0.05)
+            model = ARIMA(X2['val'].values, order=self.model)
+            fitted_model = model.fit()
+            #TODO: get forecast on training data and generate array of differences. In case it is not normal, one step-ahed for cycle
+            #example 100 times, select one random element from the array and add to the prediction (prediction intervals residuals bootsraping method)
+            forecast= fitted_model.get_forecast(len(self.T2)//3)
+            #TODO: USE CWC METRIC
+            conf_int = forecast.conf_int(alpha=0.05)
 
-        average_conf_int = np.mean(conf_int[:,1] - conf_int[:,0])
+            average_conf_int = np.mean(conf_int[:,1] - conf_int[:,0])
         # 5. Summation
         G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + abs(average_conf_int - 0.5)
 
@@ -624,7 +638,7 @@ class TimeGAN(torch.nn.Module):
         XT = torch.FloatTensor(XT).unsqueeze(-1).unsqueeze(1)
         YT = torch.FloatTensor(YT).unsqueeze(-1)
 
-
+        #TODO: change this part: take out the training
         rnn_model = RNNPredictor(input_size=1, hidden_size=50, num_layers=1, output_size=1, model='rnn').to(XT.device)
         train_model(rnn_model, XT, YT, num_epochs=100, learning_rate=0.01)
 

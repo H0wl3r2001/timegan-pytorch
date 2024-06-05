@@ -76,7 +76,7 @@ def predict_next_n_with_avg_confidence_interval(rnn_model, current_data, n, alph
     predictions, lower_bound, upper_bound, lower_bound_predictions, upper_bound_predictions = predict_with_confidence(rnn_model, next_indices_tensor, alpha)
     
     # Calculate the difference between upper and lower bounds for each forecasted value
-    confidence_interval_diff = upper_bound - lower_bound
+    confidence_interval_diff = upper_bound_predictions - lower_bound_predictions
     
     # Calculate and return the average difference
     avg_confidence_interval_diff = np.mean(confidence_interval_diff)

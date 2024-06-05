@@ -83,8 +83,8 @@ def main(args):
     # Load and preprocess data for model
     #########################
 
-    if not os.path.exists("data/sin_func.csv"):
-        idx = np.arange(0, 500)
+    if not os.path.exists("data/m6_assets/ABBV.csv"):
+        idx = np.arange(0, 500 + 1)
         sin_values = np.sin(idx * (2 * np.pi/500))
 
         df = pd.DataFrame({
@@ -94,7 +94,7 @@ def main(args):
         df.to_csv("data/sin_func.csv", index=False)
 
     
-    data_path = "data/python_5years_alt.csv"
+    data_path = "data/m6_assets/ABBV.csv"
     X, T, _, args.max_seq_len, args.padding_value = data_preprocess(
         data_path, args.max_seq_len
     )
@@ -141,7 +141,7 @@ def main(args):
 
     T1 = T[:int(len(train_time)*1.5)]
 
-    model = TimeGAN(args, T1, train_data, rnn_model) 
+    model = TimeGAN(args, T1, train_data, o1) 
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args)
     generated_data = timegan_generator(model, T, args)

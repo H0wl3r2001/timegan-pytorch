@@ -103,7 +103,7 @@ def joint_trainer_1st_phase(
     """The training loop for training the model altogether
     """
     logger = trange(
-        args.sup_epochs, 
+        args.sup_epochs // 50, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
     
@@ -140,7 +140,7 @@ def joint_trainer_1st_phase(
             ## Discriminator Training
             model.zero_grad()
             # Forward Pass
-            D_loss = model(X=X_mb, T=T_mb, Z=Z_mb, obj="discriminator")
+            D_loss, _ = model(X=X_mb, T=T_mb, Z=Z_mb, obj="discriminator")
 
             # Check Discriminator loss
             if D_loss > args.dis_thresh:
@@ -193,6 +193,7 @@ def joint_trainer_2nd_phase_arima(
 
     avrg_conf_interv = []
     local_conf_interv = []
+    diff_list = []
     
     for epoch in logger:
         for X_mb, T_mb in dataloader:
@@ -228,7 +229,7 @@ def joint_trainer_2nd_phase_arima(
             ## Discriminator Training
             model.zero_grad()
             # Forward Pass
-            D_loss = model(X=X_mb, T=T_mb, Z=Z_mb, obj="discriminator")
+            D_loss, avrg_diff = model(X=X_mb, T=T_mb, Z=Z_mb, obj="discriminator")
 
             # Check Discriminator loss
             if D_loss > args.dis_thresh:
@@ -239,7 +240,7 @@ def joint_trainer_2nd_phase_arima(
                 d_opt.step()
             D_loss = D_loss.item()
 
-        
+        diff_list.append(avrg_diff)
         avrg_conf_interv.append(np.mean(local_conf_interv))
         
         logger.set_description(
@@ -263,8 +264,10 @@ def joint_trainer_2nd_phase_arima(
             )
             writer.flush()
 
-    with open(f"{args.model_path}/aOrder_{model.arima_order[0]}_{model.arima_order[1]}_{model.arima_order[2]}_confIntrv.pickle", "wb") as fb:
+    with open(f"{args.model_path}/m6_assets/aOrder_{model.model[0]}_{model.model[1]}_{model.model[2]}_confIntrv_ABBV.pickle", "wb") as fb:
         pickle.dump(avrg_conf_interv, fb)
+    with open(f"{args.model_path}/m6_assets/aOrder_{model.model[0]}_{model.model[1]}_{model.model[2]}_avrg_diff_ABBV.pickle", "wb") as fb:
+        pickle.dump(diff_list, fb)
 
 def joint_trainer_2nd_phase_rnn(
     model: torch.nn.Module, 
@@ -286,6 +289,7 @@ def joint_trainer_2nd_phase_rnn(
 
     avrg_conf_interv = []
     local_conf_interv = []
+    diff_list = []
     
     for epoch in logger:
         for X_mb, T_mb in dataloader:
@@ -321,7 +325,7 @@ def joint_trainer_2nd_phase_rnn(
             ## Discriminator Training
             model.zero_grad()
             # Forward Pass
-            D_loss = model(X=X_mb, T=T_mb, Z=Z_mb, obj="discriminator")
+            D_loss, avrg_diff = model(X=X_mb, T=T_mb, Z=Z_mb, obj="discriminator")
 
             # Check Discriminator loss
             if D_loss > args.dis_thresh:
@@ -332,7 +336,7 @@ def joint_trainer_2nd_phase_rnn(
                 d_opt.step()
             D_loss = D_loss.item()
 
-        
+        diff_list.append(avrg_diff)
         avrg_conf_interv.append(np.mean(local_conf_interv))
         
         logger.set_description(
@@ -356,8 +360,10 @@ def joint_trainer_2nd_phase_rnn(
             )
             writer.flush()
 
-    with open(f"{args.model_path}/aOrder_{model.arima_order[0]}_{model.arima_order[1]}_{model.arima_order[2]}_confIntrv.pickle", "wb") as fb:
+    with open(f"{args.model_path}/ml_model_rnn_confIntrv.pickle", "wb") as fb:
         pickle.dump(avrg_conf_interv, fb)
+    with open(f"{args.model_path}/ml_model_rnn_avrg_diff.pickle", "wb") as fb:
+        pickle.dump(diff_list, fb)        
 
 def timegan_trainer(model, data, time, args):
     """The training procedure for TimeGAN
@@ -423,18 +429,18 @@ def timegan_trainer(model, data, time, args):
         writer=writer,
     )
 
-    #print("\nStart Joint Training (2nd Phase), with predictor")
-    #joint_trainer_2nd_phase_rnn(
-    #    model=model,
-    #    dataloader=dataloader,
-    #    e_opt=e_opt,
-    #    r_opt=r_opt,
-    #    s_opt=s_opt,
-    #    g_opt=g_opt,
-    #    d_opt=d_opt,
-    #    args=args,
-    #    writer=writer,
-    #)
+    print("\nStart Joint Training (2nd Phase), with predictor")
+    joint_trainer_2nd_phase_arima(
+        model=model,
+        dataloader=dataloader,
+        e_opt=e_opt,
+        r_opt=r_opt,
+        s_opt=s_opt,
+        g_opt=g_opt,
+        d_opt=d_opt,
+        args=args,
+        writer=writer,
+    )
 
     # Save model, args, and hyperparameters
     torch.save(args, f"{args.model_path}/args.pickle")
