@@ -30,7 +30,7 @@ class RNNPredictor(nn.Module):
         else:
             raise ValueError(f"Unsupported model type: {model}")
 
-def train_model(model, X_train, y_train, num_epochs=100, learning_rate=0.01):
+def train_model(model, X_train, y_train, num_epochs=5, learning_rate=0.01):
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     
@@ -42,9 +42,65 @@ def train_model(model, X_train, y_train, num_epochs=100, learning_rate=0.01):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+def generate_residuals(model, train_data, window_size):
+    residuals = []
+    for i in range(len(train_data) - window_size):
+        window_X_train = train_data[i:i + window_size].unsqueeze(-1).unsqueeze(0)  # Add batch dimension
+        window_y_train = train_data[i + 1:i + window_size + 1].unsqueeze(-1).unsqueeze(0)  # Add batch dimension
         
-        #if (epoch+1) % 10 == 0:
-        #    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+        train_model(model, window_X_train, window_y_train, num_epochs=50, learning_rate=0.01)
+        model.eval()
+        
+        with torch.no_grad():
+            #prediction = model(window_X_train[-1].unsqueeze(0)).item()
+            #residual = window_y_train[-1, -1].item() - prediction
+            prediction = model(window_X_train)  # Predict next value
+            prediction_value = prediction.cpu().detach().numpy().item()  # Extract scalar value
+            #print(f"Prediction value for window {i}: ", prediction_value)
+            actual_value = train_data[i + window_size].item()  # Corresponding actual value
+            #print(f"Actual value for window {i}: ", actual_value)
+            residual = actual_value - prediction_value  # Calculate residual
+            residuals.append(residual)
+    
+    return residuals
+
+def bootstrap_predictions_with_sliding_window(model, original_train_data, test_data, residuals, num_bootstrap=100, num_epochs=50, learning_rate=0.01):
+    all_predictions = []
+    current_train_data = original_train_data.clone()
+    window_size = len(original_train_data)
+    
+    for i in range(len(test_data)):
+        # Use a sliding window of fixed size equal to the original training data length
+        if len(current_train_data) > window_size:
+            current_train_data = current_train_data[-window_size:]
+        
+        X_train = current_train_data[:-1].unsqueeze(-1).unsqueeze(0)  # Add batch dimension
+        y_train = current_train_data[1:].unsqueeze(-1).unsqueeze(0)  # Add batch dimension
+        
+        train_model(model, X_train, y_train, num_epochs=num_epochs, learning_rate=learning_rate)
+        model.eval()
+        
+        with torch.no_grad():
+            #prediction = model(X_train[-1].unsqueeze(0)).item()
+            prediction = model(X_train)  # Predict next value
+            prediction_value = prediction.cpu().detach().numpy().item()  # Extract scalar value
+        
+        bootstrapped_predictions = [prediction_value + np.random.choice(residuals) for _ in range(num_bootstrap)]
+        lower_bound = np.percentile(bootstrapped_predictions, 2.5)
+        upper_bound = np.percentile(bootstrapped_predictions, 97.5)
+        
+        all_predictions.append((prediction, lower_bound, upper_bound))
+        
+        # Slide the window forward by incorporating the next test data point
+        current_train_data = torch.cat((current_train_data, test_data[i:i+1]), dim=0)
+    
+    return all_predictions
+
+
+def prepare_data_tensor(df):
+    return torch.tensor(df['val'].values, dtype=torch.float32)
+
 
 def predict_with_confidence(model, X, alpha=0.05):
     model.eval()

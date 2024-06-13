@@ -103,7 +103,7 @@ def joint_trainer_1st_phase(
     """The training loop for training the model altogether
     """
     logger = trange(
-        args.sup_epochs // 50, 
+        250,#args.sup_epochs // 50, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
     
@@ -283,7 +283,7 @@ def joint_trainer_2nd_phase_rnn(
     """The training loop for training the model altogether
     """
     logger = trange(
-        args.sup_epochs - args.sup_epochs // 50, 
+        200, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
 
@@ -360,9 +360,9 @@ def joint_trainer_2nd_phase_rnn(
             )
             writer.flush()
 
-    with open(f"{args.model_path}/ml_model_rnn_confIntrv.pickle", "wb") as fb:
+    with open(f"{args.model_path}/m6_assets/ml_model_rnn_confIntrv_ABBV2.pickle", "wb") as fb:
         pickle.dump(avrg_conf_interv, fb)
-    with open(f"{args.model_path}/ml_model_rnn_avrg_diff.pickle", "wb") as fb:
+    with open(f"{args.model_path}/m6_assets/ml_model_rnn_avrg_diff_ABBV2.pickle", "wb") as fb:
         pickle.dump(diff_list, fb)        
 
 def timegan_trainer(model, data, time, args):
@@ -429,18 +429,18 @@ def timegan_trainer(model, data, time, args):
         writer=writer,
     )
 
-    print("\nStart Joint Training (2nd Phase), with predictor")
-    joint_trainer_2nd_phase_arima(
-        model=model,
-        dataloader=dataloader,
-        e_opt=e_opt,
-        r_opt=r_opt,
-        s_opt=s_opt,
-        g_opt=g_opt,
-        d_opt=d_opt,
-        args=args,
-        writer=writer,
-    )
+    #print("\nStart Joint Training (2nd Phase), with predictor")
+    #joint_trainer_2nd_phase_rnn(
+    #    model=model,
+    #    dataloader=dataloader,
+    #    e_opt=e_opt,
+    #    r_opt=r_opt,
+    #    s_opt=s_opt,
+    #    g_opt=g_opt,
+    #    d_opt=d_opt,
+    #    args=args,
+    #    writer=writer,
+    #)
 
     # Save model, args, and hyperparameters
     torch.save(args, f"{args.model_path}/args.pickle")

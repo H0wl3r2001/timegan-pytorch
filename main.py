@@ -14,14 +14,15 @@ import pandas as pd
 import torch
 import joblib
 from sklearn.model_selection import train_test_split
+from statsmodels.tsa.arima.model import ARIMA
 
 # Self-Written Modules
 from data.data_preprocess import data_preprocess
 from metrics.metric_utils import (
     feature_prediction, one_step_ahead_prediction, reidentify_score
 )
-from metrics.arima import find_best_arima_model, generate_arima_models, prepare_data2
-from metrics.rnn_confidence import RNNPredictor, train_model, predict_with_confidence
+from metrics.arima import find_best_arima_model, generate_arima_models, prepare_data
+from metrics.rnn_confidence import RNNPredictor, generate_residuals, bootstrap_predictions_with_sliding_window, prepare_data_tensor
 
 from models.timegan import TimeGAN
 from models.utils import timegan_trainer, timegan_generator
@@ -140,8 +141,42 @@ def main(args):
     start = time.time()
 
     T1 = T[:int(len(train_time)*1.5)]
+    
+    #########################
+    # Generate confidence intervals on original data
+    #########################
+    new_train_data, new_test_data = prepare_data(train_data, test_data)
 
-    model = TimeGAN(args, T1, train_data, o1) 
+    new_train_data = pd.concat([new_train_data, new_test_data.iloc[:len(new_test_data)//2]])
+    new_test_data = new_test_data.iloc[len(new_test_data)//2:]
+
+    flag = False
+
+    if flag:
+        arima_model = ARIMA(new_train_data, order=o1)
+        forecast = arima_model.fit().get_forecast(len(new_test_data))
+        intrv = forecast.conf_int(alpha=0.05)
+        o_ACIW = np.mean(intrv[:,1] - intrv[:,0])
+
+    else: #RNN BOOTSTRAPPING A CONFIDENCE INTERVAL
+        print("Generating residuals for original data...\n")
+        residuals = generate_residuals(rnn_model, prepare_data_tensor(new_train_data), len(train_data))
+
+        print("Bootstrapping predictions with sliding window...\n")
+        all_predictions = bootstrap_predictions_with_sliding_window(rnn_model, prepare_data_tensor(new_train_data), prepare_data_tensor(new_test_data), residuals)
+        
+        differences = [upper - lower for _, lower, upper in all_predictions]
+
+        o_ACIW = np.mean(differences)
+
+    print(f"Average confidence interval in original data: {o_ACIW}\n")
+
+    #########################
+    # TimeGAN model
+    #########################    
+
+    rnn_model2 = RNNPredictor(input_size=1, hidden_size=50, num_layers=1, output_size=1, model='rnn')
+    model = TimeGAN(args, T1, train_data, test_data, o_ACIW, rnn_model2) 
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args)
     generated_data = timegan_generator(model, T, args)
@@ -332,15 +367,15 @@ if __name__ == "__main__":
     # Model Arguments
     parser.add_argument(
         '--emb_epochs',
-        default=2041,
+        default=510,
         type=int)
     parser.add_argument(
         '--sup_epochs',
-        default=2041,
+        default=510,
         type=int)
     parser.add_argument(
         '--gan_epochs',
-        default=2041,
+        default=1020,
         type=int)
     parser.add_argument(
         '--batch_size',

@@ -5,8 +5,8 @@ import math
 from models.utils import timegan_generator
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_squared_error
-from metrics.arima import prepare_data2
-from metrics.rnn_confidence import RNNPredictor, train_model,predict_with_confidence,predict_next_n_with_avg_confidence_interval
+from metrics.arima import prepare_data2, prepare_data
+from metrics.rnn_confidence import RNNPredictor, train_model,predict_with_confidence,predict_next_n_with_avg_confidence_interval,bootstrap_predictions_with_sliding_window, generate_residuals, prepare_data_tensor
 
 class EmbeddingNetwork(torch.nn.Module):
     """The embedding network (encoder) for TimeGAN
@@ -381,7 +381,7 @@ class TimeGAN(torch.nn.Module):
     - https://papers.nips.cc/paper/2019/hash/c9efe5f26cd17ba6216bbe2a7d26d490-Abstract.html
     - https://github.com/jsyoon0823/TimeGAN
     """
-    def __init__(self, args, T2, base_data, model=None):
+    def __init__(self, args, T2, base_data, test_data, aciw, model=None):
         super(TimeGAN, self).__init__()
         self.device = args.device
         self.feature_dim = args.feature_dim
@@ -393,6 +393,8 @@ class TimeGAN(torch.nn.Module):
         self.args = args
         self.model = model
         self.base_data = base_data
+        self.test_data = test_data
+        self.aciw = aciw
 
         self.embedder = EmbeddingNetwork(args)
         self.recovery = RecoveryNetwork(args)
@@ -522,7 +524,7 @@ class TimeGAN(torch.nn.Module):
 
         return G_loss
     
-    def _generator_forward_2nd_arima(self, X, T, Z, gamma=1):
+    def _generator_forward_2nd_arima(self, X, T, Z, gamma=1, alpha=1):
         """The generator forward pass. 2nd phase where the output of the predictor is used as input to the generator loss function
         Args:
             - X: the original feature input
@@ -580,11 +582,11 @@ class TimeGAN(torch.nn.Module):
 
             average_conf_int = np.mean(conf_int[:,1] - conf_int[:,0])
         # 5. Summation
-        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + abs(average_conf_int - 0.5)
+        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + alpha * np.log(average_conf_int/self.aciw)
 
         return G_loss, average_conf_int
     
-    def _generator_forward_2nd_rnn(self, X, T, Z, gamma=1):
+    def _generator_forward_2nd_rnn(self, X, T, Z, gamma=1, alpha=1):
         """The generator forward pass. 2nd phase where the output of the predictor is used as input to the generator loss function
         Args:
             - X: the original feature input
@@ -629,22 +631,27 @@ class TimeGAN(torch.nn.Module):
             X2 = X2.cpu().detach().numpy()
             X2 = np.concatenate((np.array(self.base_data), X2[np.array(self.base_data).shape[0]:]))
             X2 = prepare_data2(X2)
+            _, test_data = prepare_data(self.base_data, self.test_data)
+            test_data = test_data[len(test_data) // 2:] # Now I have training data with a third of it being synthetic (train = 75%, test = 25%) 
+        
+            #TODO calculate the average difference between values of the 95% confidence interval and add that to the generator loss function
+            # 4. Rnn model and confidence interval loss calculation
 
-        #TODO calculate the average difference between values of the 95% confidence interval and add that to the generator loss function
-        # 4. Rnn model and confidence interval loss calculation
-        XT = X2['idx'].values
-        YT = X2['val'].values
+            train_data_T = prepare_data_tensor(X2)
+            test_data_T  = prepare_data_tensor(test_data)
+            #rnn_model = RNNPredictor(input_size=1, hidden_size=50, num_layers=1, output_size=1, model='rnn')
 
-        XT = torch.FloatTensor(XT).unsqueeze(-1).unsqueeze(1)
-        YT = torch.FloatTensor(YT).unsqueeze(-1)
+        #print("Generating residuals\n")
+        residuals = generate_residuals(self.model, train_data_T, len(self.base_data)) #Residuals only in the part of the synthetic data
 
-        #TODO: change this part: take out the training
-        rnn_model = RNNPredictor(input_size=1, hidden_size=50, num_layers=1, output_size=1, model='rnn').to(XT.device)
-        train_model(rnn_model, XT, YT, num_epochs=100, learning_rate=0.01)
+        #print("Generating confidence intrv\n")
+        predictions_with_confidence_intervals = bootstrap_predictions_with_sliding_window(self.model, train_data_T, test_data_T, residuals)
 
-        average_conf_int = predict_next_n_with_avg_confidence_interval(rnn_model, X2, len(self.T2)//3, alpha=0.05)
-        # 5. Summation
-        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + abs(average_conf_int - 0.5)
+        differences = [upper - lower for _, lower, upper in predictions_with_confidence_intervals]
+
+        average_conf_int = np.mean(differences)
+            # 5. Summation
+        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + alpha * np.log(average_conf_int/self.aciw)
 
         return G_loss, average_conf_int
 
