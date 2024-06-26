@@ -65,6 +65,16 @@ def data_preprocess(
     # Load csv
     print("Loading data...\n")
     ori_data = pd.read_csv(file_name)
+    #ori_data = ori_data.iloc[:len(ori_data)//8]
+
+    np.random.seed(0)
+
+    # Define the noise level (standard deviation of the noise)
+    #noise_level = 0.05
+
+    #ori_data['val2'] = ori_data['sin_value']+ np.random.normal(0, noise_level, len(ori_data))
+    #ori_data['val3'] = ori_data['sin_value']+ np.random.normal(0, noise_level, len(ori_data))
+    #ori_data['val4'] = ori_data['sin_value']+ np.random.normal(0, noise_level, len(ori_data))
 
     # Remove spurious column, so that column 0 is now 'admissionid'.
     if ori_data.columns[0] == "Unnamed: 0":  
@@ -119,7 +129,7 @@ def data_preprocess(
     output.fill(padding_value)
     time = []
 
-    print(ori_data.values)
+    #print(ori_data.values)
 
     # For each uniq id
     for i in tqdm(range(no)):

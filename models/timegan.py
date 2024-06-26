@@ -1,12 +1,12 @@
 # -*- coding: UTF-8 -*-
 import torch
 import numpy as np
-import math
+
 from models.utils import timegan_generator
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_squared_error
 from metrics.arima import prepare_data2, prepare_data
-from metrics.rnn_confidence import RNNPredictor, train_model,predict_with_confidence,predict_next_n_with_avg_confidence_interval,bootstrap_predictions_with_sliding_window, generate_residuals, prepare_data_tensor
+from metrics.rnn_confidence import bootstrap_predictions_with_sliding_window, generate_residuals, prepare_data_tensor
 
 class EmbeddingNetwork(torch.nn.Module):
     """The embedding network (encoder) for TimeGAN
@@ -524,7 +524,7 @@ class TimeGAN(torch.nn.Module):
 
         return G_loss
     
-    def _generator_forward_2nd_arima(self, X, T, Z, gamma=1, alpha=1):
+    def _generator_forward_2nd_arima(self, X, T, Z, gamma=1, a=50):
         """The generator forward pass. 2nd phase where the output of the predictor is used as input to the generator loss function
         Args:
             - X: the original feature input
@@ -581,12 +581,20 @@ class TimeGAN(torch.nn.Module):
             conf_int = forecast.conf_int(alpha=0.05)
 
             average_conf_int = np.mean(conf_int[:,1] - conf_int[:,0])
-        # 5. Summation
-        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + alpha * np.log(average_conf_int/self.aciw)
 
-        return G_loss, average_conf_int
+            metric = torch.abs(torch.log(torch.tensor(average_conf_int/self.aciw, dtype=G_loss_U.dtype)))
+
+        #print("G_l_u type: ", G_loss_U.dtype)
+        #print("G_l_u_e type: ", G_loss_U_e.dtype)
+        #print("G_l_s type: ", G_loss_S.dtype)
+        #print("G_l_v type: ", G_loss_V.dtype)
+        #print("metric type: ", metric.dtype)
+        # 5. Summation
+        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + a * metric
+
+        return G_loss, average_conf_int, metric
     
-    def _generator_forward_2nd_rnn(self, X, T, Z, gamma=1, alpha=1):
+    def _generator_forward_2nd_rnn(self, X, T, Z, gamma=1, a=1):
         """The generator forward pass. 2nd phase where the output of the predictor is used as input to the generator loss function
         Args:
             - X: the original feature input
@@ -650,8 +658,9 @@ class TimeGAN(torch.nn.Module):
         differences = [upper - lower for _, lower, upper in predictions_with_confidence_intervals]
 
         average_conf_int = np.mean(differences)
+        metric = torch.abs(torch.log(torch.tensor(average_conf_int/self.aciw, dtype=G_loss_U.dtype)))
             # 5. Summation
-        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + alpha * np.log(average_conf_int/self.aciw)
+        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + a * metric
 
         return G_loss, average_conf_int
 

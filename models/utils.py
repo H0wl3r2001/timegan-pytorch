@@ -103,10 +103,10 @@ def joint_trainer_1st_phase(
     """The training loop for training the model altogether
     """
     logger = trange(
-        250,#args.sup_epochs // 50, 
+        10,#args.sup_epochs // 50, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
-    
+    gloss = []
     for epoch in logger:
         for X_mb, T_mb in dataloader:
             ## Generator Training
@@ -119,6 +119,7 @@ def joint_trainer_1st_phase(
                 G_loss = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator")
                 G_loss.backward()
                 G_loss = np.sqrt(G_loss.item())
+                #gloss.append(G_loss)
 
                 # Update model parameters
                 g_opt.step()
@@ -172,9 +173,13 @@ def joint_trainer_1st_phase(
             )
             writer.flush()
 
+    #with open(f"{args.model_path}/sinfunc/GLOSS_normal.pickle", "wb") as fb:
+        #pickle.dump(gloss, fb)
+
 #TODO: Implement 2nd phase of joint training, with the predictor adding to the G loss
 def joint_trainer_2nd_phase_arima(
-    model: torch.nn.Module, 
+    model: torch.nn.Module,
+    ACIW: None, 
     dataloader: torch.utils.data.DataLoader, 
     e_opt: torch.optim.Optimizer, 
     r_opt: torch.optim.Optimizer, 
@@ -187,12 +192,11 @@ def joint_trainer_2nd_phase_arima(
     """The training loop for training the model altogether
     """
     logger = trange(
-        args.sup_epochs - args.sup_epochs // 50, 
+        400, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
-
+    gloss = []
     avrg_conf_interv = []
-    local_conf_interv = []
     diff_list = []
     
     for epoch in logger:
@@ -204,10 +208,13 @@ def joint_trainer_2nd_phase_arima(
 
                 # Forward Pass (Generator)
                 model.zero_grad()
-                G_loss, conf_int = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator_2nd_phase_arima")
+                G_loss, conf_int, metric = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator_2nd_phase_arima")
                 G_loss.backward()
+                #TODO: extract the gradient
+                #gradients = [param.grad for param in model.parameters() if param.grad is not None]
                 G_loss = np.sqrt(G_loss.item())
-                local_conf_interv.append(conf_int)
+                avrg_conf_interv.append(conf_int)
+                gloss.append(G_loss)
 
                 # Update model parameters
                 g_opt.step()
@@ -230,6 +237,7 @@ def joint_trainer_2nd_phase_arima(
             model.zero_grad()
             # Forward Pass
             D_loss, avrg_diff = model(X=X_mb, T=T_mb, Z=Z_mb, obj="discriminator")
+            diff_list.append(avrg_diff)
 
             # Check Discriminator loss
             if D_loss > args.dis_thresh:
@@ -240,11 +248,9 @@ def joint_trainer_2nd_phase_arima(
                 d_opt.step()
             D_loss = D_loss.item()
 
-        diff_list.append(avrg_diff)
-        avrg_conf_interv.append(np.mean(local_conf_interv))
         
         logger.set_description(
-            f"Epoch: {epoch}, E: {E_loss:.4f}, G: {G_loss:.4f}, D: {D_loss:.4f}"
+            f"Epoch: {epoch}, E: {E_loss:.4f}, G: {G_loss:.4f}, D: {D_loss:.4f}, ACIW:{np.mean(conf_int):.4f}, ratio:{conf_int/ACIW:.4f}"
         )
         if writer:
             writer.add_scalar(
@@ -262,12 +268,17 @@ def joint_trainer_2nd_phase_arima(
                 D_loss, 
                 epoch
             )
+            for name, param in model.named_parameters():
+                if param.grad is not None:
+                    writer.add_histogram(f"gradients/{name}", param.grad, epoch)
             writer.flush()
 
-    with open(f"{args.model_path}/m6_assets/aOrder_{model.model[0]}_{model.model[1]}_{model.model[2]}_confIntrv_ABBV.pickle", "wb") as fb:
+    with open(f"{args.model_path}/sinfunc/SIN_ACIW_PT10_A50_ARIMA1.pickle", "wb") as fb:
         pickle.dump(avrg_conf_interv, fb)
-    with open(f"{args.model_path}/m6_assets/aOrder_{model.model[0]}_{model.model[1]}_{model.model[2]}_avrg_diff_ABBV.pickle", "wb") as fb:
+    with open(f"{args.model_path}/sinfunc/SIN_AD_PT10_A50_ARIMA1.pickle", "wb") as fb:
         pickle.dump(diff_list, fb)
+    with open(f"{args.model_path}/sinfunc/GLOSS_mod_PT10_A50_ARIMA1.pickle", "wb") as fb:
+        pickle.dump(gloss, fb)
 
 def joint_trainer_2nd_phase_rnn(
     model: torch.nn.Module, 
@@ -283,12 +294,12 @@ def joint_trainer_2nd_phase_rnn(
     """The training loop for training the model altogether
     """
     logger = trange(
-        200, 
+        400, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
 
     avrg_conf_interv = []
-    local_conf_interv = []
+    gloss = []
     diff_list = []
     
     for epoch in logger:
@@ -303,7 +314,8 @@ def joint_trainer_2nd_phase_rnn(
                 G_loss, conf_int = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator_2nd_phase_rnn")
                 G_loss.backward()
                 G_loss = np.sqrt(G_loss.item())
-                local_conf_interv.append(conf_int)
+                avrg_conf_interv.append(conf_int)
+                gloss.append(G_loss)
 
                 # Update model parameters
                 g_opt.step()
@@ -326,7 +338,7 @@ def joint_trainer_2nd_phase_rnn(
             model.zero_grad()
             # Forward Pass
             D_loss, avrg_diff = model(X=X_mb, T=T_mb, Z=Z_mb, obj="discriminator")
-
+            diff_list.append(avrg_diff)
             # Check Discriminator loss
             if D_loss > args.dis_thresh:
                 # Backward Pass
@@ -335,9 +347,6 @@ def joint_trainer_2nd_phase_rnn(
                 # Update model parameters
                 d_opt.step()
             D_loss = D_loss.item()
-
-        diff_list.append(avrg_diff)
-        avrg_conf_interv.append(np.mean(local_conf_interv))
         
         logger.set_description(
             f"Epoch: {epoch}, E: {E_loss:.4f}, G: {G_loss:.4f}, D: {D_loss:.4f}"
@@ -360,10 +369,12 @@ def joint_trainer_2nd_phase_rnn(
             )
             writer.flush()
 
-    with open(f"{args.model_path}/m6_assets/ml_model_rnn_confIntrv_ABBV2.pickle", "wb") as fb:
+    with open(f"{args.model_path}/sinfunc/SIN_rnn_ACIW_PT10_A1.pickle", "wb") as fb:
         pickle.dump(avrg_conf_interv, fb)
-    with open(f"{args.model_path}/m6_assets/ml_model_rnn_avrg_diff_ABBV2.pickle", "wb") as fb:
-        pickle.dump(diff_list, fb)        
+    with open(f"{args.model_path}/sinfunc/SIN_rnn_AD_PT10_A1.pickle", "wb") as fb:
+        pickle.dump(diff_list, fb)
+    with open(f"{args.model_path}/sinfunc/GLOSS_mod_PT10_A1_RNN.pickle", "wb") as fb:
+        pickle.dump(gloss, fb)        
 
 def timegan_trainer(model, data, time, args):
     """The training procedure for TimeGAN
@@ -429,18 +440,21 @@ def timegan_trainer(model, data, time, args):
         writer=writer,
     )
 
-    #print("\nStart Joint Training (2nd Phase), with predictor")
-    #joint_trainer_2nd_phase_rnn(
-    #    model=model,
-    #    dataloader=dataloader,
-    #    e_opt=e_opt,
-    #    r_opt=r_opt,
-    #    s_opt=s_opt,
-    #    g_opt=g_opt,
-    #    d_opt=d_opt,
-    #    args=args,
-    #    writer=writer,
-    #)
+    print("\nStart Joint Training (2nd Phase), with predictor")
+    joint_trainer_2nd_phase_arima(
+        model=model,
+        ACIW = model.aciw,
+        dataloader=dataloader,
+        e_opt=e_opt,
+        r_opt=r_opt,
+        s_opt=s_opt,
+        g_opt=g_opt,
+        d_opt=d_opt,
+        args=args,
+        writer=writer,
+    )
+
+    writer.close()
 
     # Save model, args, and hyperparameters
     torch.save(args, f"{args.model_path}/args.pickle")

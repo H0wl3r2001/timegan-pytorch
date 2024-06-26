@@ -84,9 +84,9 @@ def main(args):
     # Load and preprocess data for model
     #########################
 
-    if not os.path.exists("data/m6_assets/ABBV.csv"):
-        idx = np.arange(0, 500 + 1)
-        sin_values = np.sin(idx * (2 * np.pi/500))
+    if not os.path.exists("data/sin_func.csv"):
+        idx = np.arange(0, 100 + 1)
+        sin_values = np.sin(idx * (2 * np.pi/100))
 
         df = pd.DataFrame({
             "Idx": idx,
@@ -95,7 +95,7 @@ def main(args):
         df.to_csv("data/sin_func.csv", index=False)
 
     
-    data_path = "data/m6_assets/ABBV.csv"
+    data_path = "data/sin_func.csv"
     X, T, _, args.max_seq_len, args.padding_value = data_preprocess(
         data_path, args.max_seq_len
     )
@@ -150,10 +150,11 @@ def main(args):
     new_train_data = pd.concat([new_train_data, new_test_data.iloc[:len(new_test_data)//2]])
     new_test_data = new_test_data.iloc[len(new_test_data)//2:]
 
-    flag = False
+    flag = True
 
     if flag:
-        arima_model = ARIMA(new_train_data, order=o1)
+        print("Generating ACIW from ARIMA...\n")
+        arima_model = ARIMA(new_train_data['val'].values, order=o1)
         forecast = arima_model.fit().get_forecast(len(new_test_data))
         intrv = forecast.conf_int(alpha=0.05)
         o_ACIW = np.mean(intrv[:,1] - intrv[:,0])
@@ -176,7 +177,7 @@ def main(args):
     #########################    
 
     rnn_model2 = RNNPredictor(input_size=1, hidden_size=50, num_layers=1, output_size=1, model='rnn')
-    model = TimeGAN(args, T1, train_data, test_data, o_ACIW, rnn_model2) 
+    model = TimeGAN(args, T1, train_data, test_data, o_ACIW, o1) 
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args)
     generated_data = timegan_generator(model, T, args)
@@ -194,6 +195,8 @@ def main(args):
     #########################
     
     # Save splitted data and generated data
+    with open(f"{args.model_path}/sinfunc/ARIMA_ACIW_O.pickle", "wb") as fb:
+        pickle.dump(o_ACIW, fb)
     with open(f"{args.model_path}/train_data.pickle", "wb") as fb:
         pickle.dump(train_data, fb)
     with open(f"{args.model_path}/train_time.pickle", "wb") as fb:
@@ -225,93 +228,93 @@ def main(args):
     # Evaluate the performance
     #########################
 
-    # 1. Feature prediction
-    if X.shape[2] == 1:
-        feat_idx = [0]
-        flag = False
-    else:
-        feat_idx = np.random.permutation(train_data.shape[2])[:args.feat_pred_no]
-        flag = True
-    
-    print("Running feature prediction using original data...")
-    ori_feat_pred_perf = feature_prediction(
-        (train_data, train_time), 
-        (test_data, test_time),
-        feat_idx,   
-        flag
-    )
-    
-    print("Running feature prediction using generated data: TRTS (Train on real, test on synthetic)...")
-    new_feat_pred_perf = feature_prediction(
-        (train_data, train_time),
-        (generated_data, generated_time),
-        feat_idx,
-        flag
-    )
-
-    feat_pred = [ori_feat_pred_perf, new_feat_pred_perf]
-
-    print('Feature prediction results:\n' +
-          f'(1) Ori: {str(np.round(ori_feat_pred_perf, 4))}\n' +
-          f'(2) New: {str(np.round(new_feat_pred_perf, 4))}\n')
-
-    # 2. One step ahead prediction
-    if(flag):
-        print("Running one step ahead prediction using original data...")
-        ori_step_ahead_pred_perf = one_step_ahead_prediction(
-            (train_data, train_time), 
-            (test_data, test_time),
-            flag
-        )
-        print("Running one step ahead prediction using generated data...")
-        new_step_ahead_pred_perf = one_step_ahead_prediction(
-            (train_data, train_time),
-            (generated_data, generated_time),
-            flag
-        )
-
-        step_ahead_pred = [ori_step_ahead_pred_perf, new_step_ahead_pred_perf]
-
-        print('One step ahead prediction results:\n' +
-              f'(1) Ori: {str(np.round(ori_step_ahead_pred_perf, 4))}\n' +
-              f'(2) New: {str(np.round(new_step_ahead_pred_perf, 4))}\n')
-
-    # 3. Arima prediction (univariate):
-    #TODO: complete this part
-    if(flag == False):
-
-        #p = [0, 1, 2]
-        #q = range(0, 3)
-        #d = range(0, 3)
-
-        print("Running Arima prediction using original data...")
-        #ori_arima_pred_perf = evaluate_models(
-        #    train_data, 
-        #    test_data,
-        #    p,
-        #    q,
-        #    d
-        #)
-        order_og, ori_arima_pred_perf = find_best_arima_model(train_data, test_data)
-
-        print("Running Arima prediction using generated data...")
-        #new_arima_pred_perf = evaluate_models(
-        #    X,
-        #    generated_data,
-        #    p,
-        #    q,
-        #    d
-        #)
-        order_synth, new_arima_pred_perf = find_best_arima_model(train_data, generated_data)
-        step_ahead_pred = [ori_arima_pred_perf, new_arima_pred_perf]
-
-        print('Arima prediction results:\n' +
-            f'(1) Ori: {str(np.round(ori_arima_pred_perf, 4))}\n' +
-            f'(2) New: {str(np.round(new_arima_pred_perf, 4))}\n')
-        
-        print('Arima order results:\n' +
-            f'(1) Ori: {order_og}\n' +
-            f'(2) New: {order_synth}\n')
+#    # 1. Feature prediction
+#    if X.shape[2] == 1:
+#        feat_idx = [0]
+#        flag = False
+#    else:
+#        feat_idx = np.random.permutation(train_data.shape[2])[:args.feat_pred_no]
+#        flag = True
+#    
+#    print("Running feature prediction using original data...")
+#    ori_feat_pred_perf = feature_prediction(
+#        (train_data, train_time), 
+#        (test_data, test_time),
+#        feat_idx,   
+#        flag
+#    )
+#    
+#    print("Running feature prediction using generated data: TRTS (Train on real, test on synthetic)...")
+#    new_feat_pred_perf = feature_prediction(
+#        (train_data, train_time),
+#        (generated_data, generated_time),
+#        feat_idx,
+#        flag
+#    )
+#
+#    feat_pred = [ori_feat_pred_perf, new_feat_pred_perf]
+#
+#    print('Feature prediction results:\n' +
+#          f'(1) Ori: {str(np.round(ori_feat_pred_perf, 4))}\n' +
+#          f'(2) New: {str(np.round(new_feat_pred_perf, 4))}\n')
+#
+#    # 2. One step ahead prediction
+#    if(flag):
+#        print("Running one step ahead prediction using original data...")
+#        ori_step_ahead_pred_perf = one_step_ahead_prediction(
+#            (train_data, train_time), 
+#            (test_data, test_time),
+#            flag
+#        )
+#        print("Running one step ahead prediction using generated data...")
+#        new_step_ahead_pred_perf = one_step_ahead_prediction(
+#            (train_data, train_time),
+#            (generated_data, generated_time),
+#            flag
+#        )
+#
+#        step_ahead_pred = [ori_step_ahead_pred_perf, new_step_ahead_pred_perf]
+#
+#        print('One step ahead prediction results:\n' +
+#              f'(1) Ori: {str(np.round(ori_step_ahead_pred_perf, 4))}\n' +
+#              f'(2) New: {str(np.round(new_step_ahead_pred_perf, 4))}\n')
+#
+#    # 3. Arima prediction (univariate):
+#    #TODO: complete this part
+#    if(flag == False):
+#
+#        #p = [0, 1, 2]
+#        #q = range(0, 3)
+#        #d = range(0, 3)
+#
+#        print("Running Arima prediction using original data...")
+#        #ori_arima_pred_perf = evaluate_models(
+#        #    train_data, 
+#        #    test_data,
+#        #    p,
+#        #    q,
+#        #    d
+#        #)
+#        order_og, ori_arima_pred_perf = find_best_arima_model(train_data, test_data)
+#
+#        print("Running Arima prediction using generated data...")
+#        #new_arima_pred_perf = evaluate_models(
+#        #    X,
+#        #    generated_data,
+#        #    p,
+#        #    q,
+#        #    d
+#        #)
+#        order_synth, new_arima_pred_perf = find_best_arima_model(train_data, generated_data)
+#        step_ahead_pred = [ori_arima_pred_perf, new_arima_pred_perf]
+#
+#        print('Arima prediction results:\n' +
+#            f'(1) Ori: {str(np.round(ori_arima_pred_perf, 4))}\n' +
+#            f'(2) New: {str(np.round(new_arima_pred_perf, 4))}\n')
+#        
+#        print('Arima order results:\n' +
+#            f'(1) Ori: {order_og}\n' +
+#            f'(2) New: {order_synth}\n')
 
     print(f"Total Runtime: {(time.time() - start)/60} mins\n")
 
@@ -335,7 +338,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--device',
         choices=['cuda', 'cpu'],
-        default='cuda',
+        default='cpu',
         type=str)
     parser.add_argument(
         '--exp',
@@ -357,7 +360,7 @@ if __name__ == "__main__":
     # Data Arguments
     parser.add_argument(
         '--max_seq_len',
-        default=100,
+        default=2,
         type=int)
     parser.add_argument(
         '--train_rate',
@@ -367,11 +370,11 @@ if __name__ == "__main__":
     # Model Arguments
     parser.add_argument(
         '--emb_epochs',
-        default=510,
+        default=500,
         type=int)
     parser.add_argument(
         '--sup_epochs',
-        default=510,
+        default=500,
         type=int)
     parser.add_argument(
         '--gan_epochs',
