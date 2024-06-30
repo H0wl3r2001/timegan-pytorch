@@ -1,6 +1,7 @@
 import warnings
 from math import sqrt
 from statsmodels.tsa.arima.model import ARIMA
+import numpy as np
 from sklearn.metrics import mean_squared_error
 import pandas as pd
 from pmdarima.arima import auto_arima
@@ -23,15 +24,45 @@ def prepare_data(train, test):
     
     return new_train, new_test
 
-def prepare_data2(train):
-    new_train = []
+def prepare_data1(train, test):
+    # Extract the first elements for the train data array
+    first_elements_train = train[:, 0, 0]
+    # Create an array of indices for the train data array
+    indices_train = np.arange(len(first_elements_train))
     
-    for i in range(len(train)):
-        new_train.append([i, train[i][0][0]])
+    # Create a pandas DataFrame for the train data array
+    df_train = pd.DataFrame({
+        'idx': indices_train,
+        'val': first_elements_train
+    })
+    
+    # Extract the first elements for the test data array
+    first_elements_test = test[:, 0, 0]
+    # Create an array of indices for the test data array, starting after the last index of the train array
+    indices_test = np.arange(len(first_elements_test)) + len(first_elements_train)
+    
+    # Create a pandas DataFrame for the test data array
+    df_test = pd.DataFrame({
+        'idx': indices_test,
+        'val': first_elements_test
+    })
 
-    new_train = pd.DataFrame(new_train, columns=['idx', 'val'])
-    
-    return new_train
+    return df_train, df_test
+
+def prepare_data2(train):
+    # Extract the first elements
+    first_elements = train[:, 0, 0]
+
+    # Create an array of indices
+    indices = np.arange(len(first_elements))
+
+    # Create a pandas DataFrame
+    df = pd.DataFrame({
+        'idx': indices,
+        'val': first_elements
+    })
+
+    return df
 
 
 def evaluate_arima_model(train, test, arima_order):
@@ -110,7 +141,7 @@ def find_best_arima_model(train, test):
 
 def generate_arima_models(train, test):
     warnings.filterwarnings("ignore")
-    train_df, _ = prepare_data(train, test)
+    train_df, _ = prepare_data1(train, test)
     
     # Extract training and testing data
     train_data = train_df['val'].values

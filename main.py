@@ -21,7 +21,7 @@ from data.data_preprocess import data_preprocess
 from metrics.metric_utils import (
     feature_prediction, one_step_ahead_prediction, reidentify_score
 )
-from metrics.arima import find_best_arima_model, generate_arima_models, prepare_data
+from metrics.arima import find_best_arima_model, generate_arima_models, prepare_data1
 from metrics.rnn_confidence import RNNPredictor, generate_residuals, bootstrap_predictions_with_sliding_window, prepare_data_tensor
 
 from models.timegan import TimeGAN
@@ -84,8 +84,8 @@ def main(args):
     # Load and preprocess data for model
     #########################
 
-    if not os.path.exists("data/sin_func.csv"):
-        idx = np.arange(0, 100 + 1)
+    if not os.path.exists("data/sin_func1.csv"):
+        idx = np.arange(0, 99+1)
         sin_values = np.sin(idx * (2 * np.pi/100))
 
         df = pd.DataFrame({
@@ -145,7 +145,7 @@ def main(args):
     #########################
     # Generate confidence intervals on original data
     #########################
-    new_train_data, new_test_data = prepare_data(train_data, test_data)
+    new_train_data, new_test_data = prepare_data1(train_data, test_data)
 
     new_train_data = pd.concat([new_train_data, new_test_data.iloc[:len(new_test_data)//2]])
     new_test_data = new_test_data.iloc[len(new_test_data)//2:]
