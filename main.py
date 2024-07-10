@@ -84,8 +84,8 @@ def main(args):
     # Load and preprocess data for model
     #########################
 
-    if not os.path.exists("data/sin_func1.csv"):
-        idx = np.arange(0, 99+1)
+    if not os.path.exists("data/sin_func.csv"):
+        idx = np.arange(0, 399+1)
         sin_values = np.sin(idx * (2 * np.pi/100))
 
         df = pd.DataFrame({
@@ -95,7 +95,7 @@ def main(args):
         df.to_csv("data/sin_func.csv", index=False)
 
     
-    data_path = "data/sin_func.csv"
+    data_path = "data/sine_wave_data_formatted_min_max_waves.csv"
     X, T, _, args.max_seq_len, args.padding_value = data_preprocess(
         data_path, args.max_seq_len
     )
@@ -110,18 +110,20 @@ def main(args):
 
     # Train-Test Split data and time
     train_data, test_data, train_time, test_time = train_test_split(
-        X, T, test_size=args.train_rate, random_state=args.seed
+        X, T, test_size=args.train_rate, shuffle=False
     )
 
-    print(f"Train data: {train_data} \n")
-    print(f"Test data: {test_data} \n")
-    print(f"Train time: {train_time} \n")
-    print(f"Test time: {test_time} \n")
+    new_train_data, new_test_data = train_test_split(X, test_size=0.5, shuffle=False)
+
+    #print(f"Train data: {train_data} \n")
+    #print(f"Test data: {test_data} \n")
+    #print(f"Train time: {train_time} \n")
+    #print(f"Test time: {test_time} \n")
 
     #########################
     # Initialize arima model (p,q,d) orders
     #########################
-    o1, o2, o3, o4 = generate_arima_models(train_data, test_data)
+    o1, o2, o3, o4 = generate_arima_models(new_train_data, new_test_data)
 
     #########################
     # Initialize rnn model
@@ -145,7 +147,9 @@ def main(args):
     #########################
     # Generate confidence intervals on original data
     #########################
-    new_train_data, new_test_data = prepare_data1(train_data, test_data)
+    
+
+    new_train_data, new_test_data = prepare_data1(new_train_data, new_test_data)
 
     new_train_data = pd.concat([new_train_data, new_test_data.iloc[:len(new_test_data)//2]])
     new_test_data = new_test_data.iloc[len(new_test_data)//2:]
@@ -179,7 +183,7 @@ def main(args):
     rnn_model2 = RNNPredictor(input_size=1, hidden_size=50, num_layers=1, output_size=1, model='rnn')
     model = TimeGAN(args, T1, train_data, test_data, o_ACIW, o1) 
     if args.is_train == True:
-        timegan_trainer(model, train_data, train_time, args)
+        timegan_trainer(model, train_data, train_time, args) #TODO: X for train_data, T for train_time, need to include index list to track shuffled 
     generated_data = timegan_generator(model, T, args)
     generated_data = generated_data[len(test_data):] #TODO: splice this data from what corresponds to the train data, keeping the "test_data" for evaluation
     generated_time = test_time
@@ -195,17 +199,17 @@ def main(args):
     #########################
     
     # Save splitted data and generated data
-    with open(f"{args.model_path}/sinfunc/ARIMA_ACIW_O.pickle", "wb") as fb:
+    with open(f"{args.model_path}/sinfunc/ARIMA_ACIW_O_1.pickle", "wb") as fb:
         pickle.dump(o_ACIW, fb)
-    with open(f"{args.model_path}/train_data.pickle", "wb") as fb:
+    with open(f"{args.model_path}/train_data4.pickle", "wb") as fb:
         pickle.dump(train_data, fb)
     with open(f"{args.model_path}/train_time.pickle", "wb") as fb:
         pickle.dump(train_time, fb)
-    with open(f"{args.model_path}/test_data.pickle", "wb") as fb:
+    with open(f"{args.model_path}/test_data4.pickle", "wb") as fb:
         pickle.dump(test_data, fb)
     with open(f"{args.model_path}/test_time.pickle", "wb") as fb:
         pickle.dump(test_time, fb)
-    with open(f"{args.model_path}/fake_data.pickle", "wb") as fb:
+    with open(f"{args.model_path}/fake_data4.pickle", "wb") as fb:
         pickle.dump(generated_data, fb)
     with open(f"{args.model_path}/fake_time.pickle", "wb") as fb:
         pickle.dump(generated_time, fb)
@@ -360,7 +364,7 @@ if __name__ == "__main__":
     # Data Arguments
     parser.add_argument(
         '--max_seq_len',
-        default=2,
+        default=10,
         type=int)
     parser.add_argument(
         '--train_rate',
@@ -403,7 +407,7 @@ if __name__ == "__main__":
         type=str)
     parser.add_argument(
         '--learning_rate',
-        default=1e-3,
+        default=1e-2,
         type=float)
 
     args = parser.parse_args()

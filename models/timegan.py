@@ -590,7 +590,7 @@ class TimeGAN(torch.nn.Module):
         #print("G_l_v type: ", G_loss_V.dtype)
         #print("metric type: ", metric.dtype)
         # 5. Summation
-        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + metric
+        G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V #+ metric
 
         return G_loss, average_conf_int, metric
     

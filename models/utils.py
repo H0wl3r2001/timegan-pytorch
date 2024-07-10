@@ -273,11 +273,11 @@ def joint_trainer_2nd_phase_arima(
                     writer.add_histogram(f"gradients/{name}", param.grad, epoch)
             writer.flush()
 
-    with open(f"{args.model_path}/sinfunc/SIN_ACIW_PT10_A1_ARIMA2.pickle", "wb") as fb:
+    with open(f"{args.model_path}/sinfunc/SIN_ACIW_PT10_A1_ARIMA5.pickle", "wb") as fb:
         pickle.dump(avrg_conf_interv, fb)
-    with open(f"{args.model_path}/sinfunc/SIN_AD_PT10_A1_ARIMA2.pickle", "wb") as fb:
+    with open(f"{args.model_path}/sinfunc/SIN_AD_PT10_A1_ARIMA5.pickle", "wb") as fb:
         pickle.dump(diff_list, fb)
-    with open(f"{args.model_path}/sinfunc/GLOSS_mod_PT10_A1_ARIMA2.pickle", "wb") as fb:
+    with open(f"{args.model_path}/sinfunc/GLOSS_mod_PT10_A1_ARIMA5.pickle", "wb") as fb:
         pickle.dump(gloss, fb)
 
 def joint_trainer_2nd_phase_rnn(
