@@ -95,7 +95,7 @@ def main(args):
         df.to_csv("data/sin_func.csv", index=False)
 
     
-    data_path = "data/sine_wave_data_formatted_min_max_waves.csv"
+    data_path = "data/stock.csv"
     X, T, _, args.max_seq_len, args.padding_value = data_preprocess(
         data_path, args.max_seq_len
     )
@@ -199,17 +199,17 @@ def main(args):
     #########################
     
     # Save splitted data and generated data
-    with open(f"{args.model_path}/sinfunc/ARIMA_ACIW_O_1.pickle", "wb") as fb:
+    with open(f"{args.model_path}/sinfunc/ARIMA_ACIW_O_2.pickle", "wb") as fb:
         pickle.dump(o_ACIW, fb)
-    with open(f"{args.model_path}/train_data4.pickle", "wb") as fb:
+    with open(f"{args.model_path}/train_data6.pickle", "wb") as fb:
         pickle.dump(train_data, fb)
     with open(f"{args.model_path}/train_time.pickle", "wb") as fb:
         pickle.dump(train_time, fb)
-    with open(f"{args.model_path}/test_data4.pickle", "wb") as fb:
+    with open(f"{args.model_path}/test_data6.pickle", "wb") as fb:
         pickle.dump(test_data, fb)
     with open(f"{args.model_path}/test_time.pickle", "wb") as fb:
         pickle.dump(test_time, fb)
-    with open(f"{args.model_path}/fake_data4.pickle", "wb") as fb:
+    with open(f"{args.model_path}/fake_data6.pickle", "wb") as fb:
         pickle.dump(generated_data, fb)
     with open(f"{args.model_path}/fake_time.pickle", "wb") as fb:
         pickle.dump(generated_time, fb)
@@ -364,7 +364,7 @@ if __name__ == "__main__":
     # Data Arguments
     parser.add_argument(
         '--max_seq_len',
-        default=10,
+        default=100,
         type=int)
     parser.add_argument(
         '--train_rate',
@@ -374,11 +374,11 @@ if __name__ == "__main__":
     # Model Arguments
     parser.add_argument(
         '--emb_epochs',
-        default=500,
+        default=50,
         type=int)
     parser.add_argument(
         '--sup_epochs',
-        default=500,
+        default=50,
         type=int)
     parser.add_argument(
         '--gan_epochs',
