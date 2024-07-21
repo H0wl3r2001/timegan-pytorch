@@ -123,7 +123,7 @@ def main(args):
     #########################
     # Initialize arima model (p,q,d) orders
     #########################
-    o1, o2, o3, o4 = generate_arima_models(new_train_data, new_test_data)
+    o1 = generate_arima_models(new_train_data, new_test_data)
 
     #########################
     # Initialize rnn model
@@ -147,41 +147,49 @@ def main(args):
     #########################
     # Generate confidence intervals on original data
     #########################
-    
+    o_ACIW_list = []
 
-    new_train_data, new_test_data = prepare_data1(new_train_data, new_test_data)
+    for i, order in enumerate(o1):
 
-    new_train_data = pd.concat([new_train_data, new_test_data.iloc[:len(new_test_data)//2]])
-    new_test_data = new_test_data.iloc[len(new_test_data)//2:]
-
-    flag = True
-
-    if flag:
-        print("Generating ACIW from ARIMA...\n")
-        arima_model = ARIMA(new_train_data['val'].values, order=o1)
-        forecast = arima_model.fit().get_forecast(len(new_test_data))
-        intrv = forecast.conf_int(alpha=0.05)
-        o_ACIW = np.mean(intrv[:,1] - intrv[:,0])
-
-    else: #RNN BOOTSTRAPPING A CONFIDENCE INTERVAL
-        print("Generating residuals for original data...\n")
-        residuals = generate_residuals(rnn_model, prepare_data_tensor(new_train_data), len(train_data))
-
-        print("Bootstrapping predictions with sliding window...\n")
-        all_predictions = bootstrap_predictions_with_sliding_window(rnn_model, prepare_data_tensor(new_train_data), prepare_data_tensor(new_test_data), residuals)
+        print(f"Generating ACIW for dataset {i} from ARIMA...\n")
+        # Prepare the data for the current dataset
+        new_train_data1, new_test_data1 = prepare_data1(new_train_data, new_test_data, i)
         
-        differences = [upper - lower for _, lower, upper in all_predictions]
+        # Combine the first half of the test data with the train data
+        new_train_data1 = pd.concat([new_train_data1, new_test_data1.iloc[:len(new_test_data)//2]])
+        new_test_data1 = new_test_data1.iloc[len(new_test_data1)//2:]
 
-        o_ACIW = np.mean(differences)
+        # Fit the ARIMA model with the specified order
+        arima_model = ARIMA(new_train_data1['val'].values, order=order)
+        forecast = arima_model.fit().get_forecast(len(new_test_data1))
+        
+        # Calculate the confidence intervals
+        intrv = forecast.conf_int(alpha=0.05)
+        
+        # Calculate the o_ACIW
+        o_ACIW = np.mean(intrv[:, 1] - intrv[:, 0])
+        o_ACIW_list.append(o_ACIW)
 
-    print(f"Average confidence interval in original data: {o_ACIW}\n")
+    #if flag == False: #RNN BOOTSTRAPPING A CONFIDENCE INTERVAL
+    #    print("Generating residuals for original data...\n")
+    #    residuals = generate_residuals(rnn_model, prepare_data_tensor(new_train_data), len(train_data))
+#
+    #    print("Bootstrapping predictions with sliding window...\n")
+    #    all_predictions = bootstrap_predictions_with_sliding_window(rnn_model, prepare_data_tensor(new_train_data), prepare_data_tensor(new_test_data), residuals)
+    #    
+    #    differences = [upper - lower for _, lower, upper in all_predictions]
+#
+#        o_ACIW = np.mean(differences)
+
+    for i in range(len(o_ACIW_list)):
+        print(f"Average confidence interval in original data for dataset {i + 1}: {o_ACIW_list[i]}\n")
 
     #########################
     # TimeGAN model
     #########################    
 
     rnn_model2 = RNNPredictor(input_size=1, hidden_size=50, num_layers=1, output_size=1, model='rnn')
-    model = TimeGAN(args, T1, train_data, test_data, o_ACIW, o1) 
+    model = TimeGAN(args, T1, train_data, test_data, o_ACIW_list[0], o1[0]) 
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args) #TODO: X for train_data, T for train_time, need to include index list to track shuffled 
     generated_data = timegan_generator(model, T, args)
@@ -199,19 +207,19 @@ def main(args):
     #########################
     
     # Save splitted data and generated data
-    with open(f"{args.model_path}/sinfunc/ARIMA_ACIW_O_2.pickle", "wb") as fb:
-        pickle.dump(o_ACIW, fb)
-    with open(f"{args.model_path}/train_data6.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_ARIMA_ACIW_O_lst.pickle", "wb") as fb:
+        pickle.dump(o_ACIW_list, fb)
+    with open(f"{args.model_path}/stock/new/Stock_train_data.pickle", "wb") as fb:
         pickle.dump(train_data, fb)
-    with open(f"{args.model_path}/train_time.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_train_time.pickle", "wb") as fb:
         pickle.dump(train_time, fb)
-    with open(f"{args.model_path}/test_data6.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_test_data.pickle", "wb") as fb:
         pickle.dump(test_data, fb)
-    with open(f"{args.model_path}/test_time.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_test_time.pickle", "wb") as fb:
         pickle.dump(test_time, fb)
-    with open(f"{args.model_path}/fake_data6.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_fake_data.pickle", "wb") as fb:
         pickle.dump(generated_data, fb)
-    with open(f"{args.model_path}/fake_time.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_fake_time.pickle", "wb") as fb:
         pickle.dump(generated_time, fb)
 
     #########################

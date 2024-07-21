@@ -24,9 +24,9 @@ def prepare_data(train, test):
     
     return new_train, new_test
 
-def prepare_data1(train, test):
+def prepare_data1(train, test, n):
     # Extract the first elements for the train data array
-    first_elements_train = train[:, 0, 0]
+    first_elements_train = train[:, n, 0]
     # Create an array of indices for the train data array
     indices_train = np.arange(len(first_elements_train))
     
@@ -37,7 +37,7 @@ def prepare_data1(train, test):
     })
     
     # Extract the first elements for the test data array
-    first_elements_test = test[:, 0, 0]
+    first_elements_test = test[:, n, 0]
     # Create an array of indices for the test data array, starting after the last index of the train array
     indices_test = np.arange(len(first_elements_test)) + len(first_elements_train)
     
@@ -60,6 +60,18 @@ def prepare_data2(train):
     df = pd.DataFrame({
         'idx': indices,
         'val': first_elements
+    })
+
+    return df
+
+def prepare_data3(train):
+    # Create an array of indices
+    indices = np.arange(len(train))
+
+    # Create a pandas DataFrame
+    df = pd.DataFrame({
+        'idx': indices,
+        'val': train
     })
 
     return df
@@ -141,23 +153,20 @@ def find_best_arima_model(train, test):
 
 def generate_arima_models(train, test):
     warnings.filterwarnings("ignore")
-    train_df, _ = prepare_data1(train, test)
     
-    # Extract training and testing data
-    train_data = train_df['val'].values
+    order_list = []
+
+    for i in range(7):
+        train_df, _ = prepare_data1(train, test, i)
     
-    # Use auto_arima to find the best ARIMA model configuration
-    arima_model = auto_arima(train_data, seasonal=False, trace=True)
-    order = arima_model.order  # Best (p, d, q) order found by auto_arima
+        # Extract training and testing data
+        train_data = train_df['val'].values
+    
+        # Use auto_arima to find the best ARIMA model configuration
+        arima_model = auto_arima(train_data, seasonal=False, trace=True)
+        order = arima_model.order  # Best (p, d, q) order found by auto_arima
 
-    # Fit the ARIMA model on the training data with the best order, and then others not as optimized
-    #model1 = ARIMA(train_data, order=order)
-    #model2 = ARIMA(train_data, order=(order[0], order[1], order[2]+1))
-    #model3 = ARIMA(train_data, order=(order[0], order[1]+1, order[2]))
-    #model4 = ARIMA(train_data, order=(order[0]+1, order[1], order[2]))
-    #fitted_model1 = model1.fit()
-    #fitted_model2 = model2.fit()
-    #fitted_model3 = model3.fit()
-    #fitted_model4 = model4.fit()
+        order_list.append(order)
+    
 
-    return order, (order[0], order[1], order[2]+1), (order[0], order[1]+1, order[2]), (order[0]+1, order[1], order[2])
+    return order_list

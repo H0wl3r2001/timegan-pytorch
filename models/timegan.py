@@ -5,7 +5,7 @@ import numpy as np
 from models.utils import timegan_generator
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_squared_error
-from metrics.arima import prepare_data2, prepare_data
+from metrics.arima import prepare_data2, prepare_data, prepare_data3
 from metrics.rnn_confidence import bootstrap_predictions_with_sliding_window, generate_residuals, prepare_data_tensor
 
 class EmbeddingNetwork(torch.nn.Module):
@@ -567,8 +567,23 @@ class TimeGAN(torch.nn.Module):
             Z1 = torch.rand((len(self.T2), self.args.max_seq_len, self.args.Z_dim))
             X2 = self._inference(Z1, self.T2)
             X2 = X2.cpu().detach().numpy()
-            X2 = np.concatenate((np.array(self.base_data), X2[np.array(self.base_data).shape[0]:]))
-            X2 = prepare_data2(X2)
+
+            # Prepare base_data
+            base_data_df = prepare_data2(self.base_data)
+            base_data_vals = base_data_df['val'].to_numpy()
+
+            # Prepare X2
+            X2_df = prepare_data2(X2)
+            X2_vals = X2_df['val'].to_numpy()
+
+            # Scale X2 to the range of base_data
+            min_og, max_og = np.min(base_data_vals), np.max(base_data_vals)
+            min_synth, max_synth = np.min(X2_vals), np.max(X2_vals)
+            X2_scaled = (X2_vals - min_synth) / (max_synth - min_synth) * (max_og - min_og) + min_og
+
+            # Concatenate base_data with the scaled X2
+            concatenated_vals = np.concatenate((base_data_vals, X2_scaled[base_data_vals.shape[0]:]))
+            X2 = prepare_data3(concatenated_vals)
 
         #TODO calculate the average difference between values of the 95% confidence interval and add that to the generator loss function
         # 4. ARIMA model and confidence interval loss calculation
