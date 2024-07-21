@@ -472,9 +472,9 @@ class TimeGAN(torch.nn.Module):
             Z1 = torch.rand((len(T), self.args.max_seq_len, self.args.Z_dim))
             X2 = self._inference(Z1, T)
             X2 = X2.cpu().detach().numpy()
-            X2 = prepare_data2(X2)
+            X2 = prepare_data2(X2, 0)
 
-        base_data = prepare_data2(self.base_data)
+        base_data = prepare_data2(self.base_data, 0)
 
         avr_diff = mean_squared_error(X2['val'], base_data['val'][:len(X2['val'])])
 
@@ -568,36 +568,38 @@ class TimeGAN(torch.nn.Module):
             X2 = self._inference(Z1, self.T2)
             X2 = X2.cpu().detach().numpy()
 
-            # Prepare base_data
-            base_data_df = prepare_data2(self.base_data)
-            base_data_vals = base_data_df['val'].to_numpy()
+            average_conf_ints = []
 
-            # Prepare X2
-            X2_df = prepare_data2(X2)
-            X2_vals = X2_df['val'].to_numpy()
+            for i in range(7):
+                # Prepare base_data for the ith dataset
+                base_data_df = prepare_data2(self.base_data, i)
+                base_data_vals = base_data_df['val'].to_numpy()
 
-            # Scale X2 to the range of base_data
-            min_og, max_og = np.min(base_data_vals), np.max(base_data_vals)
-            min_synth, max_synth = np.min(X2_vals), np.max(X2_vals)
-            X2_scaled = (X2_vals - min_synth) / (max_synth - min_synth) * (max_og - min_og) + min_og
+                # Prepare X2 for the ith dataset
+                X2_df = prepare_data2(X2, i)
+                X2_vals = X2_df['val'].to_numpy()
 
-            # Concatenate base_data with the scaled X2
-            concatenated_vals = np.concatenate((base_data_vals, X2_scaled[base_data_vals.shape[0]:]))
-            X2 = prepare_data3(concatenated_vals)
+                # Scale X2 to the range of base_data
+                min_og, max_og = np.min(base_data_vals), np.max(base_data_vals)
+                min_synth, max_synth = np.min(X2_vals), np.max(X2_vals)
+                X2_scaled = (X2_vals - min_synth) / (max_synth - min_synth) * (max_og - min_og) + min_og
 
-        #TODO calculate the average difference between values of the 95% confidence interval and add that to the generator loss function
-        # 4. ARIMA model and confidence interval loss calculation
-            model = ARIMA(X2['val'].values, order=self.model)
-            fitted_model = model.fit()
-            #TODO: get forecast on training data and generate array of differences. In case it is not normal, one step-ahed for cycle
-            #example 100 times, select one random element from the array and add to the prediction (prediction intervals residuals bootsraping method)
-            forecast= fitted_model.get_forecast(len(self.T2)//3)
-            #TODO: USE CWC METRIC
-            conf_int = forecast.conf_int(alpha=0.05)
+                # Concatenate base_data with the scaled X2
+                concatenated_vals = np.concatenate((base_data_vals, X2_scaled[base_data_vals.shape[0]:]))
+                X2_prepared = prepare_data3(concatenated_vals)
 
-            average_conf_int = np.mean(conf_int[:,1] - conf_int[:,0])
+                # ARIMA model and confidence interval loss calculation
+                model = ARIMA(X2_prepared['val'].values, order=self.model[i])
+                fitted_model = model.fit()
 
-            metric = torch.abs(torch.log(torch.tensor(average_conf_int/self.aciw, dtype=G_loss_U.dtype)))
+                forecast = fitted_model.get_forecast(len(self.T2) // 3)
+                conf_int = forecast.conf_int(alpha=0.05)
+                average_conf_int = np.mean(conf_int[:, 1] - conf_int[:, 0])
+                average_conf_ints.append(average_conf_int)
+
+            metric_temp = np.mean([average_conf_ints[i]/self.aciw[i] for i in range(7)])
+
+            metric = torch.abs(torch.log(torch.tensor(metric_temp, dtype=G_loss_U.dtype)))
 
         #print("G_l_u type: ", G_loss_U.dtype)
         #print("G_l_u_e type: ", G_loss_U_e.dtype)
@@ -607,7 +609,7 @@ class TimeGAN(torch.nn.Module):
         # 5. Summation
         G_loss = G_loss_U + gamma * G_loss_U_e + 100 * torch.sqrt(G_loss_S) + 100 * G_loss_V + metric
 
-        return G_loss, average_conf_int, metric
+        return G_loss, average_conf_ints, metric
     
     def _generator_forward_2nd_rnn(self, X, T, Z, gamma=1, a=1):
         """The generator forward pass. 2nd phase where the output of the predictor is used as input to the generator loss function

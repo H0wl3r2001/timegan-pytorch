@@ -189,7 +189,7 @@ def main(args):
     #########################    
 
     rnn_model2 = RNNPredictor(input_size=1, hidden_size=50, num_layers=1, output_size=1, model='rnn')
-    model = TimeGAN(args, T1, train_data, test_data, o_ACIW_list[0], o1[0]) 
+    model = TimeGAN(args, T1, train_data, test_data, o_ACIW_list, o1) 
     if args.is_train == True:
         timegan_trainer(model, train_data, train_time, args) #TODO: X for train_data, T for train_time, need to include index list to track shuffled 
     generated_data = timegan_generator(model, T, args)

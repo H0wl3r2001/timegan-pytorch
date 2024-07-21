@@ -49,9 +49,9 @@ def prepare_data1(train, test, n):
 
     return df_train, df_test
 
-def prepare_data2(train):
+def prepare_data2(train, idx):
     # Extract the first elements
-    first_elements = train[:, 0, 0]
+    first_elements = train[:, idx, 0]
 
     # Create an array of indices
     indices = np.arange(len(first_elements))

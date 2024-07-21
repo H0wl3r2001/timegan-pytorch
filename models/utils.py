@@ -192,7 +192,7 @@ def joint_trainer_2nd_phase_arima(
     """The training loop for training the model altogether
     """
     logger = trange(
-        400, 
+        50, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
     gloss = []
@@ -208,12 +208,12 @@ def joint_trainer_2nd_phase_arima(
 
                 # Forward Pass (Generator)
                 model.zero_grad()
-                G_loss, conf_int, metric = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator_2nd_phase_arima")
+                G_loss, conf_int_lst, metric = model(X=X_mb, T=T_mb, Z=Z_mb, obj="generator_2nd_phase_arima")
                 G_loss.backward()
                 #TODO: extract the gradient
                 #gradients = [param.grad for param in model.parameters() if param.grad is not None]
                 G_loss = np.sqrt(G_loss.item())
-                avrg_conf_interv.append(conf_int)
+                avrg_conf_interv.append(conf_int_lst)
                 gloss.append(G_loss)
 
                 # Update model parameters
@@ -250,7 +250,7 @@ def joint_trainer_2nd_phase_arima(
 
         
         logger.set_description(
-            f"Epoch: {epoch}, E: {E_loss:.4f}, G: {G_loss:.4f}, D: {D_loss:.4f}, ACIW:{np.mean(conf_int):.4f}, ratio:{conf_int/ACIW:.4f}"
+            f"Epoch: {epoch}, E: {E_loss:.4f}, G: {G_loss:.4f}, D: {D_loss:.4f}, ACIW_o:{ACIW[0]:.4f}, ratio:{conf_int_lst[0]/ACIW[0]:.4f}, metric:{metric:.4f}"
         )
         if writer:
             writer.add_scalar(
@@ -273,7 +273,7 @@ def joint_trainer_2nd_phase_arima(
                     writer.add_histogram(f"gradients/{name}", param.grad, epoch)
             writer.flush()
 
-    with open(f"{args.model_path}/stock/new/Stock_ACIW_PT10_A1_ARIMA.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_ACIW_lst_PT10_A1_ARIMA.pickle", "wb") as fb:
         pickle.dump(avrg_conf_interv, fb)
     with open(f"{args.model_path}/stock/new/Stock_AD_PT10_A1_ARIMA.pickle", "wb") as fb:
         pickle.dump(diff_list, fb)
