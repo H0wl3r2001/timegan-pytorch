@@ -207,19 +207,19 @@ def main(args):
     #########################
     
     # Save splitted data and generated data
-    with open(f"{args.model_path}/stock/new/Stock_ARIMA_ACIW_O_lst.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_ARIMA_ACIW_O_lst_2.pickle", "wb") as fb:
         pickle.dump(o_ACIW_list, fb)
-    with open(f"{args.model_path}/stock/new/Stock_train_data.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_train_data_2.pickle", "wb") as fb:
         pickle.dump(train_data, fb)
-    with open(f"{args.model_path}/stock/new/Stock_train_time.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_train_time_2.pickle", "wb") as fb:
         pickle.dump(train_time, fb)
-    with open(f"{args.model_path}/stock/new/Stock_test_data.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_test_data_2.pickle", "wb") as fb:
         pickle.dump(test_data, fb)
-    with open(f"{args.model_path}/stock/new/Stock_test_time.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_test_time_2.pickle", "wb") as fb:
         pickle.dump(test_time, fb)
-    with open(f"{args.model_path}/stock/new/Stock_fake_data.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_fake_data_2.pickle", "wb") as fb:
         pickle.dump(generated_data, fb)
-    with open(f"{args.model_path}/stock/new/Stock_fake_time.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_fake_time_2.pickle", "wb") as fb:
         pickle.dump(generated_time, fb)
 
     #########################

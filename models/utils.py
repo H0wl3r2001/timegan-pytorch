@@ -192,7 +192,7 @@ def joint_trainer_2nd_phase_arima(
     """The training loop for training the model altogether
     """
     logger = trange(
-        50, 
+        200, 
         desc=f"Epoch: 0, E_loss: 0, G_loss: 0, D_loss: 0"
     )
     gloss = []
@@ -273,11 +273,11 @@ def joint_trainer_2nd_phase_arima(
                     writer.add_histogram(f"gradients/{name}", param.grad, epoch)
             writer.flush()
 
-    with open(f"{args.model_path}/stock/new/Stock_ACIW_lst_PT10_A1_ARIMA.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_ACIW_lst_PT10_A1_ARIMA_2.pickle", "wb") as fb:
         pickle.dump(avrg_conf_interv, fb)
-    with open(f"{args.model_path}/stock/new/Stock_AD_PT10_A1_ARIMA.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_AD_PT10_A1_ARIMA_2.pickle", "wb") as fb:
         pickle.dump(diff_list, fb)
-    with open(f"{args.model_path}/stock/new/Stock_GLOSS_mod_PT10_A1_ARIMA.pickle", "wb") as fb:
+    with open(f"{args.model_path}/stock/new/Stock_GLOSS_mod_PT10_A1_ARIMA_2.pickle", "wb") as fb:
         pickle.dump(gloss, fb)
 
 def joint_trainer_2nd_phase_rnn(

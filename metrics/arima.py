@@ -26,7 +26,7 @@ def prepare_data(train, test):
 
 def prepare_data1(train, test, n):
     # Extract the first elements for the train data array
-    first_elements_train = train[:, n, 0]
+    first_elements_train = train[:, n, 1]
     # Create an array of indices for the train data array
     indices_train = np.arange(len(first_elements_train))
     
@@ -37,7 +37,7 @@ def prepare_data1(train, test, n):
     })
     
     # Extract the first elements for the test data array
-    first_elements_test = test[:, n, 0]
+    first_elements_test = test[:, n, 1]
     # Create an array of indices for the test data array, starting after the last index of the train array
     indices_test = np.arange(len(first_elements_test)) + len(first_elements_train)
     
@@ -51,7 +51,7 @@ def prepare_data1(train, test, n):
 
 def prepare_data2(train, idx):
     # Extract the first elements
-    first_elements = train[:, idx, 0]
+    first_elements = train[:, idx, 1]
 
     # Create an array of indices
     indices = np.arange(len(first_elements))

@@ -4,6 +4,7 @@ import numpy as np
 
 from models.utils import timegan_generator
 from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.stattools import adfuller
 from sklearn.metrics import mean_squared_error
 from metrics.arima import prepare_data2, prepare_data, prepare_data3
 from metrics.rnn_confidence import bootstrap_predictions_with_sliding_window, generate_residuals, prepare_data_tensor
